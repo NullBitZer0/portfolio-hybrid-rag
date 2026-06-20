@@ -1,4 +1,5 @@
 import os
+import tempfile
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.retrievers import BM25Retriever
@@ -12,17 +13,29 @@ from src.config import (
 )
 
 
-def load_documents(data_dir: str) -> list:
-    """Load all PDFs and TXT files from data directory."""
+def load_documents() -> list:
+    """Load all documents from MinIO."""
+    from src.storage import storage
+
     documents = []
-    for root, _, files in os.walk(data_dir):
-        for file in files:
-            path = os.path.join(root, file)
-            if file.endswith(".pdf"):
-                documents.extend(PyPDFLoader(path).load())
-            elif file.endswith(".txt"):
-                documents.extend(TextLoader(path).load())
-    print(f"Loaded {len(documents)} documents")
+    files = storage.list_files()
+
+    for obj in files:
+        name = obj['name']
+        if not name.endswith(('.pdf', '.txt', '.docx')):
+            continue
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(name)[1]) as tmp:
+            try:
+                storage.download_file(name, tmp.name)
+                if name.endswith('.pdf'):
+                    documents.extend(PyPDFLoader(tmp.name).load())
+                elif name.endswith('.txt'):
+                    documents.extend(TextLoader(tmp.name).load())
+            finally:
+                os.unlink(tmp.name)
+
+    print(f"Loaded {len(documents)} documents from MinIO")
     return documents
 
 
@@ -59,11 +72,11 @@ def build_bm25_retriever(chunks: list, k: int = 5) -> BM25Retriever:
     return bm25
 
 
-def ingest(data_dir: str = "./data"):
+def ingest():
     """Full ingestion pipeline."""
-    docs = load_documents(data_dir)
+    docs = load_documents()
     if not docs:
-        raise ValueError(f"No documents found in {data_dir}")
+        raise ValueError("No documents found in MinIO")
     chunks = split_documents(docs)
     vectorstore = build_vectorstore(chunks)
     bm25_retriever = build_bm25_retriever(chunks)
