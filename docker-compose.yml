@@ -1,0 +1,68 @@
+services:
+  rag:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - chroma_data:/app/chroma_db
+    depends_on:
+      minio:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    env_file:
+      - .env
+    volumes:
+      - chroma_data:/app/chroma_db
+    depends_on:
+      minio:
+        condition: service_healthy
+      docling:
+        condition: service_healthy
+    restart: unless-stopped
+
+  docling:
+    image: ghcr.io/docling-project/docling-serve:latest
+    ports:
+      - "5001:5001"
+    environment:
+      DOCLING_SERVE_ENABLE_UI: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "9002:9000"
+      - "9003:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_NOTIFY_WEBHOOK_WORKER_ENDPOINT: "http://worker:9000/webhook/minio"
+      MINIO_NOTIFY_WEBHOOK_WORKER_ENABLE: "on"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  chroma_data:
+  minio_data:

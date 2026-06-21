@@ -1,0 +1,52 @@
+[
+  {
+    "question": "What ML projects has Alex worked on?",
+    "ground_truth": "Alex has worked on three main ML projects: FraudGuard (fraud detection system), MedNLP (clinical text understanding), and RecSysPro (recommendation engine).",
+    "category": "resume"
+  },
+  {
+    "question": "What was the impact of the FraudGuard project?",
+    "ground_truth": "FraudGuard detected $2.1M in fraudulent transactions in its first quarter and reduced false positive rate by 35%.",
+    "category": "project"
+  },
+  {
+    "question": "What is Alex's education background?",
+    "ground_truth": "Alex has a Master of Science in Computer Science (Machine Learning) from Stanford University (2018) and a Bachelor of Science in Computer Science from UC Berkeley (2016).",
+    "category": "resume"
+  },
+  {
+    "question": "What technologies does Alex use for MLOps?",
+    "ground_truth": "Alex uses Docker, Kubernetes, MLflow, and Weights & Biases for MLOps.",
+    "category": "skills"
+  },
+  {
+    "question": "What is the architecture of the FraudGuard system?",
+    "ground_truth": "FraudGuard uses a lambda architecture with Apache Kafka for streaming, Redis for feature store, XGBoost + Neural Network ensemble for modeling, and FastAPI for serving.",
+    "category": "project"
+  },
+  {
+    "question": "What was Alex's role at TechCorp?",
+    "ground_truth": "Alex was a Senior ML Engineer at TechCorp from January 2022 to present, where they built a fraud detection system and led a team of 4 engineers.",
+    "category": "experience"
+  },
+  {
+    "question": "What is the MedNLP project about?",
+    "ground_truth": "MedNLP is a clinical NLP system that extracts structured information from unstructured medical records, performing named entity recognition and relation extraction.",
+    "category": "project"
+  },
+  {
+    "question": "What cloud platforms does Alex have experience with?",
+    "ground_truth": "Alex has experience with AWS (SageMaker, EC2, S3, Lambda), GCP (Vertex AI), and Azure ML.",
+    "category": "skills"
+  },
+  {
+    "question": "What was the accuracy of the MedNLP NER system?",
+    "ground_truth": "The MedNLP NER system achieved an overall F1 score of 0.93, with problem entities at 0.94, treatment entities at 0.92, and test entities at 0.91.",
+    "category": "project"
+  },
+  {
+    "question": "What programming languages does Alex know?",
+    "ground_truth": "Alex knows Python, SQL, JavaScript, and C++.",
+    "category": "skills"
+  }
+]
