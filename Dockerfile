@@ -14,8 +14,6 @@ COPY --from=builder /install /usr/local
 
 COPY . .
 
-RUN mkdir -p /app/data /app/chroma_db
-
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

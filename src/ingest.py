@@ -3,11 +3,8 @@ import hashlib
 import tempfile
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from src.config import (
-    EMBEDDING_MODEL,
-    CHUNK_SIZE,
-    CHUNK_OVERLAP,
-)
+from src.config import CHUNK_SIZE, CHUNK_OVERLAP
+from src.embeddings import embed_texts
 from src.opensearch_client import get_opensearch_client, ensure_index, bulk_index, get_doc_count
 
 
@@ -50,20 +47,21 @@ def split_documents(documents: list) -> list:
     return chunks
 
 
-def get_embeddings_model():
-    """Get the HuggingFace embeddings model."""
-    from langchain_huggingface import HuggingFaceEmbeddings
-    return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-
-
 def index_to_opensearch(chunks: list) -> int:
-    """Index chunks into OpenSearch with dense vectors."""
+    """Index chunks into OpenSearch with Gemini embeddings."""
     client = get_opensearch_client()
     ensure_index(client)
 
-    embeddings = get_embeddings_model()
     texts = [c.page_content for c in chunks]
-    vectors = embeddings.embed_documents(texts)
+
+    # Batch embed (Gemini supports batch)
+    all_vectors = []
+    batch_size = 100
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i + batch_size]
+        vectors = embed_texts(batch)
+        all_vectors.extend(vectors)
+        print(f"  Embedded {min(i + batch_size, len(texts))}/{len(texts)} chunks")
 
     documents = []
     for i, chunk in enumerate(chunks):
@@ -71,7 +69,7 @@ def index_to_opensearch(chunks: list) -> int:
         documents.append({
             "id": doc_id,
             "content": chunk.page_content,
-            "vector": vectors[i],
+            "vector": all_vectors[i],
             "source": chunk.metadata.get("source", "unknown"),
             "page": chunk.metadata.get("page", 0),
             "chunk_id": i,
@@ -93,4 +91,4 @@ def ingest():
     chunks = split_documents(docs)
     count = index_to_opensearch(chunks)
 
-    return get_doc_count(client)
+    return count

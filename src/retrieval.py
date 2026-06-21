@@ -1,8 +1,12 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from langchain_core.documents import Document
 from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
 from src.config import RETRIEVAL_K, RERANKER_MODEL, RERANK_TOP_K
+
+
+RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+RERANK_TOP_K = 3
 
 
 @dataclass
@@ -12,11 +16,10 @@ class OpenSearchRetriever:
 
     def invoke(self, query: str) -> list[Document]:
         from src.opensearch_client import get_opensearch_client, hybrid_search
-        from src.ingest import get_embeddings_model
+        from src.embeddings import embed_query
 
         client = get_opensearch_client()
-        embeddings = get_embeddings_model()
-        query_vector = embeddings.embed_query(query)
+        query_vector = embed_query(query)
 
         results = hybrid_search(client, query, query_vector, k=self.k)
 
@@ -37,7 +40,7 @@ def build_reranker(top_k: int = RERANK_TOP_K) -> CrossEncoderReranker:
 
 
 class HybridRetriever:
-    """Hybrid retriever: OpenSearch BM25 + k-NN, optionally reranked."""
+    """Hybrid retriever: OpenSearch BM25 + k-NN, reranked with local cross-encoder."""
 
     def __init__(self, rerank: bool = True, k: int = 10):
         self.base_retriever = OpenSearchRetriever(k=k)
@@ -52,7 +55,7 @@ class HybridRetriever:
 
 
 def get_reranked_retriever(rerank: bool = True) -> HybridRetriever:
-    """Build the hybrid retriever with optional reranking."""
+    """Build the hybrid retriever with local cross-encoder reranking."""
     retriever = HybridRetriever(rerank=rerank, k=10)
-    print(f"Hybrid retriever built: OpenSearch BM25 + k-NN" + (" + reranker" if rerank else ""))
+    print("Hybrid retriever built: OpenSearch BM25 + k-NN + cross-encoder rerank")
     return retriever

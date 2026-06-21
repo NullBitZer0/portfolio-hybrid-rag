@@ -9,7 +9,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from minio import Minio
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from src.embeddings import embed_texts
 from src.opensearch_client import (
     get_opensearch_client,
     ensure_index,
@@ -24,17 +24,14 @@ MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "rag-documents")
 DOCLING_URL = os.getenv("DOCLING_URL", "http://docling:5001")
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
-OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "opensearch:9200")
 
 # Folder categories
 FOLDERS = ["resume", "in_progress_projects", "completed_projects", "uni_projects"]
 
 # Globals
 minio_client = None
-embeddings = None
 
 
 def get_minio_client():
@@ -47,13 +44,6 @@ def get_minio_client():
             secure=False,
         )
     return minio_client
-
-
-def get_embeddings():
-    global embeddings
-    if embeddings is None:
-        embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-    return embeddings
 
 
 def download_from_minio(filename: str, local_path: str):
@@ -84,13 +74,18 @@ def chunk_text(text: str) -> list:
 
 
 def index_chunks_to_opensearch(chunks: list, source: str):
-    """Embed and index chunks into OpenSearch."""
+    """Embed chunks with Gemini and index into OpenSearch."""
     client = get_opensearch_client()
     ensure_index(client)
 
-    emb = get_embeddings()
     texts = [c.page_content for c in chunks]
-    vectors = emb.embed_documents(texts)
+
+    all_vectors = []
+    batch_size = 100
+    for i in range(0, len(texts), batch_size):
+        batch = texts[i:i + batch_size]
+        vectors = embed_texts(batch)
+        all_vectors.extend(vectors)
 
     documents = []
     for i, chunk in enumerate(chunks):
@@ -98,7 +93,7 @@ def index_chunks_to_opensearch(chunks: list, source: str):
         documents.append({
             "id": doc_id,
             "content": chunk.page_content,
-            "vector": vectors[i],
+            "vector": all_vectors[i],
             "source": source,
             "page": chunk.metadata.get("page", 0),
             "chunk_id": i,
