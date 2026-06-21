@@ -1,7 +1,5 @@
 import hashlib
-import json
 from typing import Optional
-from langchain_core.messages import HumanMessage, AIMessage
 
 
 class LLMCache:

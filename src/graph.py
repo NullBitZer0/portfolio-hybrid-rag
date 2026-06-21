@@ -1,4 +1,4 @@
-from src.config import get_llm
+from src.config import get_llm, MAX_LLM_TOKENS
 from src.guardrails import guard_input, guard_toxicity, classify_question, REFUSAL_RESPONSE
 from src.query_transform import transform_query, classify_query
 from src.utils import format_docs
@@ -58,13 +58,13 @@ def rag_pipeline(question: str, retriever) -> dict:
             span.update(output={"answer": cached["answer"][:200], "cached": True})
             answer = cached["answer"]
     else:
-        llm = get_llm()
+        llm = get_llm(max_tokens=MAX_LLM_TOKENS)
         with trace("generate", {"query": cleaned}) as span:
             from langchain_core.prompts import ChatPromptTemplate
             prompt = ChatPromptTemplate.from_template(
                 """You are Adeesha's portfolio assistant.
 
-Answer only using retrieved documents.
+Answer only using retrieved documents. Be concise - max 3-4 sentences.
 
 If the question is unrelated to Adeesha, his projects,
 skills, experience, resume, or education, politely refuse.

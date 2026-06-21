@@ -129,23 +129,4 @@ def guard_toxicity(answer: str) -> OutputGuardResult:
     return OutputGuardResult(True, score=1.0)
 
 
-def run_output_guards(answer: str, question: str = "", context: str = "", llm=None) -> dict:
-    results = {
-        "original": answer,
-        "answer": answer,
-        "passed": True,
-        "scores": {},
-        "flags": [],
-    }
 
-    toxicity = guard_toxicity(answer)
-    results["scores"]["toxicity"] = toxicity.score
-    if not toxicity.passed:
-        results["flags"].append(toxicity.reason)
-        results["answer"] = toxicity.fixed
-        results["passed"] = False
-
-    avg_score = sum(results["scores"].values()) / len(results["scores"]) if results["scores"] else 0
-    results["confidence"] = round(avg_score, 2)
-
-    return results

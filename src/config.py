@@ -9,6 +9,7 @@ LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
 LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 LANGFUSE_ENABLED = bool(LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY)
 LLM_MODEL = "llama-3.3-70b-versatile"
+MAX_LLM_TOKENS = 500
 EMBEDDING_DIM = 768  # Gemini gemini-embedding-2
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
@@ -32,7 +33,17 @@ MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "rag-documents")
 MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
 
+# Docling
+DOCLING_URL = os.getenv("DOCLING_URL", "http://docling:5001")
 
-def get_llm(temperature: float = 0.1):
+# Folder categories
+FOLDERS = ["", "resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"]
+ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx", ".md"}
+
+
+def get_llm(temperature: float = 0.1, max_tokens: int = None):
     from langchain_groq import ChatGroq
-    return ChatGroq(groq_api_key=GROQ_API_KEY, model_name=LLM_MODEL, temperature=temperature)
+    kwargs = {"groq_api_key": GROQ_API_KEY, "model_name": LLM_MODEL, "temperature": temperature}
+    if max_tokens:
+        kwargs["max_tokens"] = max_tokens
+    return ChatGroq(**kwargs)

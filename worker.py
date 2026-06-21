@@ -9,6 +9,10 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from minio import Minio
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from src.config import (
+    MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET,
+    DOCLING_URL, CHUNK_SIZE, CHUNK_OVERLAP, FOLDERS, ALLOWED_EXTENSIONS,
+)
 from src.embeddings import embed_texts
 from src.opensearch_client import (
     get_opensearch_client,
@@ -17,18 +21,6 @@ from src.opensearch_client import (
     delete_by_source,
     get_doc_count,
 )
-
-# Configuration
-MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
-MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
-MINIO_BUCKET = os.getenv("MINIO_BUCKET", "rag-document")
-DOCLING_URL = os.getenv("DOCLING_URL", "http://docling:5001")
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
-
-# Folder categories
-FOLDERS = ["", "resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"]
 
 # Globals
 minio_client = None

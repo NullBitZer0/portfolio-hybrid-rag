@@ -2,168 +2,105 @@
 
 ## Overview
 
-A production-grade Retrieval-Augmented Generation system with Docling document extraction, hybrid search (BM25 + vector), cross-encoder re-ranking, guardrails, and RAGAS evaluation.
+A production-grade Retrieval-Augmented Generation system with Docling document extraction, OpenSearch hybrid search (BM25 + k-NN), Cohere reranking, guardrails, and RAGAS evaluation. Deployed on Oracle Cloud via Coolify.
 
 ## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        USER INTERFACE                           │
-│                    (CLI / FastAPI Web UI)                        │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      INPUT GUARDRAILS                           │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
-│  │   Prompt     │  │   Harmful    │  │   Length               │ │
-│  │  Injection   │  │   Content    │  │   Validation           │ │
-│  └─────────────┘  └──────────────┘  └────────────────────────┘ │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                  QUERY TRANSFORMATION                           │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
-│  │   Strategy   │  │   Multi-     │  │   Step-Back            │ │
-│  │   Router     │  │   Query      │  │   Prompting            │ │
-│  └──────┬──────┘  └──────────────┘  └────────────────────────┘ │
-│         │                                                       │
-│    ┌────┴────┐                                                  │
-│    │ direct  │  → Skip LLM call, use original query             │
-│    │rewrite  │  → Clarify vague questions                       │
-│    │multi_q  │  → Generate alternative phrasings                │
-│    │step_back│  → Broaden specific queries                      │
-│    └─────────┘                                                  │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   HYBRID RETRIEVAL                              │
-│  ┌─────────────────────┐      ┌─────────────────────┐          │
-│  │     BM25 Search     │      │   Vector Search     │          │
-│  │   (Keyword-based)   │      │  (Semantic-based)   │          │
-│  └──────────┬──────────┘      └──────────┬──────────┘          │
-│             │                            │                      │
-│             └──────────┬─────────────────┘                      │
-│                        │                                        │
-│                        ▼                                        │
-│            ┌───────────────────────┐                            │
-│            │   Reciprocal Rank    │                            │
-│            │      Fusion (RRF)    │                            │
-│            │  BM25: 0.4 weight    │                            │
-│            │  Vector: 0.6 weight  │                            │
-│            └───────────┬──────────┘                            │
-│                        │                                        │
-│                        ▼                                        │
-│            ┌───────────────────────┐                            │
-│            │  Cross-Encoder        │                            │
-│            │  Re-ranking           │                            │
-│            │  ms-marco-MiniLM      │                            │
-│            │  Top 10 → Top 3       │                            │
-│            └───────────┬──────────┘                            │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                       GENERATE                                  │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │  ┌──────────────┐    ┌──────────────┐                      ││
-│  │  │   LLM Call   │───▶│   Cache      │                      ││
-│  │  │  (Groq)      │    │  (hit/miss)  │                      ││
-│  │  └──────────────┘    └──────────────┘                      ││
-│  └─────────────────────────────────────────────────────────────┘│
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      OUTPUT GUARDRAILS                          │
-│  ┌─────────────┐                                               │
-│  │  Toxicity   │                                               │
-│  │   Filter    │                                               │
-│  └─────────────┘                                               │
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      RESPONSE + METADATA                        │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
-│  │   Answer     │  │  Confidence  │  │   Trace                │ │
-│  │              │  │    Score     │  │   (Langfuse)           │ │
-│  └─────────────┘  └──────────────┘  └────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────┘
+                            Recruiter Question
+                                   |
+                                   v
+                    ┌──────────────────────────────┐
+                    │       INPUT GUARDRAILS        │
+                    │  prompt injection detection   │
+                    │  harmful content filter       │
+                    │  length validation            │
+                    └──────────────┬───────────────┘
+                                   |
+                                   v
+                    ┌──────────────────────────────┐
+                    │    PORTFOLIO CLASSIFIER       │
+                    │  keyword check + LLM fallback │
+                    │  (blocks general knowledge)   │
+                    └──────────────┬───────────────┘
+                                   |
+                                   v
+                    ┌──────────────────────────────┐
+                    │    QUERY TRANSFORMATION       │
+                    │  ┌─────────┐ ┌────────────┐  │
+                    │  │ direct  │ │  rewrite   │  │
+                    │  │ (skip)  │ │ (clarify)  │  │
+                    │  ├─────────┤ ├────────────┤  │
+                    │  │multi_q  │ │ step_back  │  │
+                    │  │(altern.)│ │ (broaden)  │  │
+                    │  └─────────┘ └────────────┘  │
+                    └──────────────┬───────────────┘
+                                   |
+                                   v
+                    ┌──────────────────────────────┐
+                    │     HYBRID RETRIEVAL          │
+                    │  ┌──────────┐  ┌──────────┐  │
+                    │  │  BM25    │  │  k-NN    │  │
+                    │  │ (keyword)│  │(semantic)│  │
+                    │  └────┬─────┘  └────┬─────┘  │
+                    │       └──────┬──────┘         │
+                    │              v                │
+                    │     OpenSearch RRF Fusion      │
+                    │              |                │
+                    │              v                │
+                    │     Cohere rerank-v3.5        │
+                    │       Top 10 -> Top 3         │
+                    └──────────────┬───────────────┘
+                                   |
+                                   v
+                    ┌──────────────────────────────┐
+                    │        GENERATION             │
+                    │  Groq llama-3.3-70b           │
+                    │  + conversation memory (5)    │
+                    │  + in-memory LRU cache        │
+                    └──────────────┬───────────────┘
+                                   |
+                                   v
+                    ┌──────────────────────────────┐
+                    │     OUTPUT GUARDRAILS         │
+                    │     toxicity filter           │
+                    └──────────────┬───────────────┘
+                                   |
+                                   v
+                    ┌──────────────────────────────┐
+                    │     ANSWER + SOURCES          │
+                    │  + Langfuse trace             │
+                    └──────────────────────────────┘
 ```
 
 ## Document Processing Pipeline
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     DOCUMENT UPLOAD                              │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │  User uploads PDF/DOCX to MinIO                             ││
-│  │  Folder: resume/ | in_progress_projects/ | completed_projects/ | uni_projects/ ││
-│  └─────────────────────────────────────────────────────────────┘│
-└──────────────────────────┬──────────────────────────────────────┘
-                           │ Webhook
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     WORKER SERVICE                              │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │  1. Receive webhook event from MinIO                        ││
-│  │  2. Download file to temp storage                           ││
-│  │  3. Send to Docling for text extraction                     ││
-│  │  4. Chunk extracted text (500 chars, 100 overlap)           ││
-│  │  5. Build ChromaDB vectors + BM25 index                     ││
-│  │  6. Cleanup temp files                                      ││
-│  └─────────────────────────────────────────────────────────────┘│
-└──────────────────────────┬──────────────────────────────────────┘
-                           │
-                           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                     DOCLING SERVICE                             │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │  - PDF/DOCX/PPTX/HTML extraction                            ││
-│  │  - Layout analysis + table structure                        ││
-│  │  - OCR for scanned documents                                ││
-│  │  - Returns structured Markdown                              ││
-│  └─────────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Project Structure
-
-```
-rag/
-├── main.py                     # Entry point (CLI / API mode)
-├── api.py                      # FastAPI web interface + REST API
-├── worker.py                   # Document processing worker
-├── Dockerfile                  # RAG app container
-├── Dockerfile.worker           # Worker container
-├── docker-compose.yml          # Multi-container deployment
-├── requirements.txt            # RAG app dependencies
-├── requirements-worker.txt     # Worker dependencies
-├── .env                        # API keys (GROQ, Langfuse, MinIO)
-├── .gitignore
-│
-├── src/
-│   ├── __init__.py
-│   ├── config.py               # All settings & environment vars
-│   ├── ingest.py               # Document loading from MinIO
-│   ├── retrieval.py            # Hybrid search + cross-encoder re-ranking
-│   ├── pipeline.py             # RAG chain + conversation memory
-│   ├── graph.py                # Main RAG pipeline (linear flow)
-│   ├── query_transform.py      # Query enhancement (rewrite, multi-query, step-back)
-│   ├── guardrails.py           # Input/output safety guards
-│   ├── cache.py                # LLM response caching
-│   ├── storage.py              # MinIO object storage
-│   ├── utils.py                # Shared utilities
-│   └── langfuse_integration.py # Observability/tracing
-│
-├── evals/
-│   ├── golden_dataset.json     # 10 golden Q&A pairs for evaluation
-│   └── run_evals.py            # RAGAS evaluation script
-│
-└── chroma_db/                  # Auto-generated vector store (shared volume)
+                    ┌──────────────────────────────┐
+                    │      DOCUMENT UPLOAD          │
+                    │  PDF uploaded to MinIO        │
+                    └──────────────┬───────────────┘
+                                   | webhook
+                                   v
+                    ┌──────────────────────────────┐
+                    │      WORKER SERVICE           │
+                    │  1. Receive MinIO webhook     │
+                    │  2. Download file to /tmp     │
+                    │  3. Docling text extraction   │
+                    │  4. Chunk (500 chars, 100)    │
+                    │  5. Gemini embed (768-dim)    │
+                    │  6. Index to OpenSearch        │
+                    │  7. Cleanup temp files        │
+                    └──────────────┬───────────────┘
+                                   |
+                                   v
+                    ┌──────────────────────────────┐
+                    │      DOCLING SERVICE          │
+                    │  PDF/DOCX/PPTX extraction     │
+                    │  Layout analysis + tables     │
+                    │  OCR for scanned docs         │
+                    │  Returns structured Markdown  │
+                    └──────────────────────────────┘
 ```
 
 ## Component Details
@@ -176,7 +113,7 @@ rag/
 | PDF Parsing | Layout analysis + table structure |
 | OCR | For scanned documents |
 | Output | Structured Markdown |
-| API | REST endpoint at `http://docling:5001` |
+| API | REST at `http://docling:5001/v1/convert/file` |
 
 ### 2. Document Ingestion (Worker)
 
@@ -185,19 +122,19 @@ rag/
 | Trigger | MinIO webhook on file upload/delete |
 | PDF Loader | Docling (via API) |
 | Chunking | RecursiveCharacterTextSplitter (500 chars, 100 overlap) |
-| Embeddings | all-MiniLM-L6-v2 (HuggingFace, local) |
-| Vector Store | ChromaDB (persistent) |
-| Keyword Index | rank-bm25 (in-memory) |
+| Embeddings | Gemini gemini-embedding-2 (768-dim) |
+| Vector Store | OpenSearch k-NN index |
+| Keyword Index | OpenSearch BM25 (built-in) |
 
 ### 3. Hybrid Retrieval (`retrieval.py`)
 
 | Component | Technology |
 |-----------|------------|
-| Keyword Search | BM25Retriever |
-| Semantic Search | ChromaDB Vector Store |
-| Fusion | EnsembleRetriever (RRF) |
-| Re-ranking | cross-encoder/ms-marco-MiniLM-L-6-v2 |
-| Weights | BM25: 0.4, Vector: 0.6 |
+| Keyword Search | OpenSearch BM25 (built-in) |
+| Semantic Search | OpenSearch k-NN (HNSW, cosine similarity) |
+| Fusion | OpenSearch native hybrid query (bool filter) |
+| Re-ranking | Cohere rerank-v3.5 (Top 10 -> Top 3) |
+| Embeddings | Gemini gemini-embedding-2 (768-dim) |
 
 ### 4. Query Transformation (`query_transform.py`)
 
@@ -217,6 +154,7 @@ rag/
 | Prompt Injection | Input | Block malicious instructions |
 | Harmful Content | Input | Block dangerous queries |
 | Length Validation | Input | Reject too short/long queries |
+| Portfolio Classifier | Input | Block general knowledge (keyword + LLM) |
 | Toxicity | Output | Filter offensive language |
 
 ### 6. Caching (`cache.py`)
@@ -232,8 +170,8 @@ rag/
 | Feature | Description |
 |---------|-------------|
 | Provider | MinIO (S3-compatible) |
-| Bucket | `rag-documents` |
-| Folders | `resume/`, `in_progress_projects/`, `completed_projects/`, `uni_projects/` |
+| Bucket | `rag-document` |
+| Structure | Flat (root-level files) |
 | Webhook | Auto-index on upload/delete |
 
 ### 8. Observability (`langfuse_integration.py`)
@@ -263,13 +201,13 @@ rag/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/query` | Ask a question |
-| POST | `/upload?folder=` | Upload file to MinIO (folder: resume/in_progress_projects/completed_projects/uni_projects) |
+| POST | `/upload?folder=` | Upload file to MinIO |
 | POST | `/upload-url?folder=` | Download from URL, store in MinIO |
 | GET | `/files?folder=` | List files (optional folder filter) |
 | DELETE | `/files/{folder}/{filename}` | Delete file from MinIO |
 | POST | `/reindex` | Trigger full reindex on worker |
 | POST | `/clear-memory` | Clear conversation history |
-| GET | `/` | Web UI |
+| GET | `/` | Health check |
 
 ### Worker (port 9000)
 
@@ -284,56 +222,73 @@ rag/
 | Layer | Technology |
 |-------|------------|
 | LLM | Groq (llama-3.3-70b-versatile) |
-| Embeddings | HuggingFace (all-MiniLM-L6-v2) |
-| Vector DB | ChromaDB |
+| Embeddings | Google Gemini (gemini-embedding-2, 768-dim) |
+| Reranking | Cohere (rerank-v3.5) |
+| Vector + Keyword | OpenSearch 2.19.0 (k-NN + BM25) |
 | Object Storage | MinIO (S3-compatible) |
 | Document Extraction | Docling Serve |
-| Re-ranker | Cross-Encoder (ms-marco-MiniLM-L-6-v2) |
-| Framework | LangChain |
+| Framework | LangChain (function chain) |
 | API | FastAPI |
+| Frontend | Next.js (portfolio) + floating AI assistant |
 | Observability | Langfuse |
 | Evaluation | RAGAS |
-| Container | Docker + Docker Compose |
+| Infrastructure | Docker Compose, Oracle Cloud, Coolify |
 
 ## Deployment
 
-### Docker Compose
+### Docker Compose (6 services)
+
+| Service | Description |
+|---------|-------------|
+| rag | FastAPI API + web UI |
+| worker | Document processing (webhook-triggered) |
+| opensearch | Vector + keyword search engine |
+| opensearch-dashboards | Search analytics UI |
+| minio | S3-compatible object storage |
+| docling | Document extraction API |
+
+### Production (Coolify on Oracle Cloud)
 
 ```bash
-# Start all services
-docker compose up -d
+# Push to GitHub -> Coolify auto-builds and deploys
+git push origin main
 
-# View logs
-docker compose logs -f
-
-# Stop services
-docker compose down
+# Manual reindex after upload
+curl -X POST http://<rag-url>/reindex
 ```
 
-**Services:**
-
-| Service | Port | Description |
-|---------|------|-------------|
-| rag | 8000 | RAG API + Web UI |
-| worker | 9000 | Document processing worker |
-| docling | 5001 | Document extraction API |
-| minio | 9002 | S3 API |
-| minio | 9003 | MinIO Console |
-
-## Secrets Management
-
-**`.env` file:**
+### Local Development
 
 ```bash
-GROQ_API_KEY=gsk_xxxxx
-LANGFUSE_PUBLIC_KEY=pk-lf-xxxxx
-LANGFUSE_SECRET_KEY=sk-lf-xxxxx
-LANGFUSE_HOST=https://us.cloud.langfuse.com
-MINIO_ENDPOINT=minio:9000
-MINIO_ACCESS_KEY=minioadmin
-MINIO_SECRET_KEY=minioadmin
-MINIO_BUCKET=rag-documents
-MINIO_SECURE=false
-RATE_LIMIT=5
-RATE_WINDOW=60
+# Start infrastructure
+docker run -d --name opensearch -p 9200:9200 \
+  -e "discovery.type=single-node" \
+  -e "DISABLE_SECURITY_PLUGIN=true" \
+  opensearchproject/opensearch:2.19.0
+
+docker run -d --name minio -p 9002:9000 -p 9003:9001 \
+  -e "MINIO_ROOT_USER=minioadmin" \
+  -e "MINIO_ROOT_PASSWORD=minioadmin" \
+  minio/minio server /data --console-address ":9001"
+
+docker run -d --name docling -p 5001:5001 \
+  ghcr.io/docling-project/docling-serve:latest
+
+# Install and run
+pip install -r requirements.txt
+python main.py --api
 ```
+
+## Secrets
+
+| Variable | Description |
+|----------|-------------|
+| `GROQ_API_KEY` | Groq LLM API key |
+| `GEMINI_API_KEY` | Google Gemini embedding API key |
+| `COHERE_API_KEY` | Cohere reranking API key |
+| `LANGFUSE_PUBLIC_KEY` | Langfuse observability |
+| `LANGFUSE_SECRET_KEY` | Langfuse observability |
+| `OPENSEARCH_HOST` | OpenSearch endpoint |
+| `MINIO_ENDPOINT` | MinIO S3 endpoint |
+| `MINIO_BUCKET` | Storage bucket name |
+| `DOCLING_URL` | Docling extraction service URL |

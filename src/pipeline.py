@@ -2,8 +2,6 @@ from langchain_core.messages import HumanMessage, AIMessage
 from src.config import MEMORY_WINDOW
 from src.graph import rag_pipeline
 
-_retriever = None
-
 
 class ConversationMemory:
     def __init__(self, max_window: int = MEMORY_WINDOW):
@@ -16,17 +14,11 @@ class ConversationMemory:
     def add_ai_message(self, content: str):
         self.history.append(AIMessage(content=content))
 
-    def get_history(self) -> list:
-        return self.history[-self.max_window:]
-
     def clear(self):
         self.history = []
 
 
 def build_conversational_rag_chain(retriever, memory: ConversationMemory):
-    global _retriever
-    _retriever = retriever
-
     def invoke(question: str) -> dict:
         result = rag_pipeline(question, retriever)
 

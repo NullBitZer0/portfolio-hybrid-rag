@@ -35,15 +35,6 @@ class MinIOStorage:
         except Exception:
             pass
 
-    def upload_file(self, file_path: str, object_name: str = None) -> str:
-        """Upload a file to MinIO."""
-        if object_name is None:
-            object_name = os.path.basename(file_path)
-        self._retry_ensure_bucket()
-        self.client.fput_object(self.bucket, object_name, file_path)
-        print(f"Uploaded {file_path} to {self.bucket}/{object_name}")
-        return object_name
-
     def upload_bytes(self, data: bytes, object_name: str, content_type: str = "application/octet-stream") -> str:
         """Upload bytes to MinIO."""
         import io
@@ -85,10 +76,6 @@ class MinIOStorage:
         except S3Error as e:
             print(f"Error deleting {object_name}: {e}")
             return False
-
-    def get_file_url(self, object_name: str) -> str:
-        """Get presigned URL for a file."""
-        return self.client.presigned_get_object(self.bucket, object_name)
 
     def file_exists(self, object_name: str) -> bool:
         """Check if file exists in MinIO."""

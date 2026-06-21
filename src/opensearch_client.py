@@ -66,21 +66,6 @@ def delete_index(client: OpenSearch = None):
         print(f"Deleted OpenSearch index: {OPENSEARCH_INDEX}")
 
 
-def index_document(client: OpenSearch, doc_id: str, content: str, vector: list, source: str, page: int, chunk_id: int):
-    """Index a single document into OpenSearch."""
-    client.index(
-        index=OPENSEARCH_INDEX,
-        id=doc_id,
-        body={
-            "content": content,
-            "vector": vector,
-            "source": source,
-            "page": page,
-            "chunk_id": chunk_id,
-        },
-    )
-
-
 def bulk_index(client: OpenSearch, documents: list[dict]):
     """Bulk index documents into OpenSearch."""
     if not documents:

@@ -6,7 +6,6 @@ httpx
 langchain-text-splitters
 langchain-community
 pydantic
-pydantic-settings
 python-dotenv
 opensearch-py>=2.0.0
 google-genai>=1.0.0

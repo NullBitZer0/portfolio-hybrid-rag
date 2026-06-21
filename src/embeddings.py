@@ -1,10 +1,9 @@
 from google import genai
-from src.config import GEMINI_API_KEY
+from src.config import GEMINI_API_KEY, EMBEDDING_DIM
 
 client = genai.Client(api_key=GEMINI_API_KEY)
 
 EMBEDDING_MODEL = "models/gemini-embedding-2"
-EMBEDDING_DIM = 768
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
