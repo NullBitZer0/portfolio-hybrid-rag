@@ -23,6 +23,7 @@ OPENSEARCH_INDEX = os.getenv("OPENSEARCH_INDEX", "rag-documents")
 
 # Gemini Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+COHERE_API_KEY = os.getenv("COHERE_API_KEY", "")
 
 # MinIO Configuration
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")

@@ -1,11 +1,8 @@
 from dataclasses import dataclass
 from langchain_core.documents import Document
-from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
-from langchain_community.cross_encoders import HuggingFaceCrossEncoder
-from src.config import RETRIEVAL_K, RERANKER_MODEL, RERANK_TOP_K
+from src.config import RETRIEVAL_K, COHERE_API_KEY, RERANK_TOP_K
 
 
-RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 RERANK_TOP_K = 3
 
 
@@ -32,30 +29,47 @@ class OpenSearchRetriever:
         ]
 
 
-def build_reranker(top_k: int = RERANK_TOP_K) -> CrossEncoderReranker:
-    cross_encoder = HuggingFaceCrossEncoder(model_name=RERANKER_MODEL)
-    reranker = CrossEncoderReranker(model=cross_encoder, top_n=top_k)
-    print(f"Reranker built: {RERANKER_MODEL} (top {top_k})")
-    return reranker
+def cohere_rerank(query: str, docs: list[Document], top_n: int = RERANK_TOP_K) -> list[Document]:
+    """Rerank documents using Cohere rerank-v3 API."""
+    import cohere
+
+    co = cohere.Client(COHERE_API_KEY)
+
+    results = co.rerank(
+        model="rerank-v3.5",
+        query=query,
+        documents=[d.page_content for d in docs],
+        top_n=top_n,
+        return_documents=True,
+    )
+
+    reranked = []
+    for result in results.results:
+        doc = docs[result.index]
+        doc.metadata["rerank_score"] = result.relevance_score
+        reranked.append(doc)
+
+    print(f"Cohere reranked {len(docs)} docs -> top {top_n}")
+    return reranked
 
 
 class HybridRetriever:
-    """Hybrid retriever: OpenSearch BM25 + k-NN, reranked with local cross-encoder."""
+    """Hybrid retriever: OpenSearch BM25 + k-NN, reranked with Cohere API."""
 
     def __init__(self, rerank: bool = True, k: int = 10):
         self.base_retriever = OpenSearchRetriever(k=k)
-        self.reranker = build_reranker() if rerank else None
+        self.rerank = rerank
         self.k = k
 
     def invoke(self, query: str) -> list[Document]:
         docs = self.base_retriever.invoke(query)
-        if self.reranker and docs:
-            docs = self.reranker.compress_documents(docs, query)
+        if self.rerank and docs:
+            docs = cohere_rerank(query, docs, top_n=RERANK_TOP_K)
         return docs
 
 
 def get_reranked_retriever(rerank: bool = True) -> HybridRetriever:
-    """Build the hybrid retriever with local cross-encoder reranking."""
+    """Build the hybrid retriever with Cohere reranking."""
     retriever = HybridRetriever(rerank=rerank, k=10)
-    print("Hybrid retriever built: OpenSearch BM25 + k-NN + cross-encoder rerank")
+    print("Hybrid retriever built: OpenSearch BM25 + k-NN + Cohere rerank")
     return retriever
