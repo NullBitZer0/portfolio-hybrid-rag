@@ -1,6 +1,5 @@
 import os
 import tempfile
-import json
 import hashlib
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -11,8 +10,13 @@ from pydantic import BaseModel
 from minio import Minio
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
-from langchain_community.retrievers import BM25Retriever
+from src.opensearch_client import (
+    get_opensearch_client,
+    ensure_index,
+    bulk_index,
+    delete_by_source,
+    get_doc_count,
+)
 
 # Configuration
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
@@ -20,10 +24,10 @@ MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET", "rag-documents")
 DOCLING_URL = os.getenv("DOCLING_URL", "http://docling:5001")
-CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "/app/chroma_db")
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
+OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "opensearch:9200")
 
 # Folder categories
 FOLDERS = ["resume", "in_progress_projects", "completed_projects", "uni_projects"]
@@ -79,27 +83,41 @@ def chunk_text(text: str) -> list:
     return splitter.create_documents([text])
 
 
-def build_vectorstore(chunks: list) -> Chroma:
-    embeddings = get_embeddings()
-    return Chroma.from_documents(
-        documents=chunks,
-        embedding=embeddings,
-        collection_name="hybrid_rag",
-        persist_directory=CHROMA_PERSIST_DIR,
-    )
+def index_chunks_to_opensearch(chunks: list, source: str):
+    """Embed and index chunks into OpenSearch."""
+    client = get_opensearch_client()
+    ensure_index(client)
 
+    emb = get_embeddings()
+    texts = [c.page_content for c in chunks]
+    vectors = emb.embed_documents(texts)
 
-def build_bm25(chunks: list) -> BM25Retriever:
-    bm25 = BM25Retriever.from_documents(chunks)
-    bm25.k = 5
-    return bm25
+    documents = []
+    for i, chunk in enumerate(chunks):
+        doc_id = hashlib.md5(f"{source}_{i}_{chunk.page_content[:50]}".encode()).hexdigest()
+        documents.append({
+            "id": doc_id,
+            "content": chunk.page_content,
+            "vector": vectors[i],
+            "source": source,
+            "page": chunk.metadata.get("page", 0),
+            "chunk_id": i,
+        })
+
+    bulk_index(client, documents)
 
 
 def reindex_all():
     client = get_minio_client()
     objects = client.list_objects(MINIO_BUCKET)
 
-    all_chunks = []
+    # Clear existing index
+    from src.opensearch_client import delete_index
+    os_client = get_opensearch_client()
+    delete_index(os_client)
+    ensure_index(os_client)
+
+    all_count = 0
     for obj in objects:
         if not obj.object_name.endswith((".pdf", ".txt", ".docx", ".pptx")):
             continue
@@ -112,16 +130,12 @@ def reindex_all():
                     chunks = chunk_text(text)
                     for chunk in chunks:
                         chunk.metadata["source"] = obj.object_name
-                    all_chunks.extend(chunks)
+                    index_chunks_to_opensearch(chunks, obj.object_name)
+                    all_count += len(chunks)
             finally:
                 os.unlink(tmp.name)
 
-    if all_chunks:
-        build_vectorstore(all_chunks)
-        build_bm25(all_chunks)
-        print(f"Reindexed {len(all_chunks)} chunks from {len(objects)} files")
-    else:
-        print("No documents found to index")
+    print(f"Reindexed {all_count} chunks into OpenSearch")
 
 
 def process_file(filename: str):
@@ -133,20 +147,15 @@ def process_file(filename: str):
                 chunks = chunk_text(text)
                 for chunk in chunks:
                     chunk.metadata["source"] = filename
-                build_vectorstore(chunks)
-                build_bm25(chunks)
+                index_chunks_to_opensearch(chunks, filename)
                 print(f"Processed {filename}: {len(chunks)} chunks")
         finally:
             os.unlink(tmp.name)
 
 
 def delete_file_index(filename: str):
-    vectorstore = Chroma(
-        collection_name="hybrid_rag",
-        persist_directory=CHROMA_PERSIST_DIR,
-        embedding_function=get_embeddings(),
-    )
-    vectorstore.delete(where={"source": filename})
+    client = get_opensearch_client()
+    delete_by_source(client, filename)
     print(f"Deleted index for {filename}")
 
 
@@ -173,7 +182,6 @@ async def minio_webhook(event: WebhookEvent):
         if not filename:
             raise HTTPException(status_code=400, detail="No filename provided")
 
-        # Check if file is in a valid folder
         folder = filename.split("/")[0] if "/" in filename else ""
         if folder not in FOLDERS:
             print(f"Skipping file outside valid folders: {filename}")
@@ -195,7 +203,8 @@ async def minio_webhook(event: WebhookEvent):
 async def reindex():
     try:
         reindex_all()
-        return {"status": "reindexed"}
+        count = get_doc_count()
+        return {"status": "reindexed", "chunks": count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

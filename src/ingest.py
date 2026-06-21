@@ -1,16 +1,14 @@
 import os
+import hashlib
 import tempfile
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.retrievers import BM25Retriever
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
 from src.config import (
     EMBEDDING_MODEL,
-    CHROMA_PERSIST_DIR,
     CHUNK_SIZE,
     CHUNK_OVERLAP,
 )
+from src.opensearch_client import get_opensearch_client, ensure_index, bulk_index, get_doc_count
 
 
 def load_documents() -> list:
@@ -52,32 +50,47 @@ def split_documents(documents: list) -> list:
     return chunks
 
 
-def build_vectorstore(chunks: list) -> Chroma:
-    """Create ChromaDB vector store from chunks."""
-    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-    vectorstore = Chroma.from_documents(
-        documents=chunks,
-        embedding=embeddings,
-        collection_name="hybrid_rag",
-        persist_directory=CHROMA_PERSIST_DIR,
-    )
-    print(f"Vector store created with {len(chunks)} chunks")
-    return vectorstore
+def get_embeddings_model():
+    """Get the HuggingFace embeddings model."""
+    from langchain_huggingface import HuggingFaceEmbeddings
+    return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
 
-def build_bm25_retriever(chunks: list, k: int = 5) -> BM25Retriever:
-    """Create BM25 keyword retriever from chunks."""
-    bm25 = BM25Retriever.from_documents(chunks)
-    bm25.k = k
-    return bm25
+def index_to_opensearch(chunks: list) -> int:
+    """Index chunks into OpenSearch with dense vectors."""
+    client = get_opensearch_client()
+    ensure_index(client)
+
+    embeddings = get_embeddings_model()
+    texts = [c.page_content for c in chunks]
+    vectors = embeddings.embed_documents(texts)
+
+    documents = []
+    for i, chunk in enumerate(chunks):
+        doc_id = hashlib.md5(f"{chunk.metadata.get('source', '')}_{i}_{chunk.page_content[:50]}".encode()).hexdigest()
+        documents.append({
+            "id": doc_id,
+            "content": chunk.page_content,
+            "vector": vectors[i],
+            "source": chunk.metadata.get("source", "unknown"),
+            "page": chunk.metadata.get("page", 0),
+            "chunk_id": i,
+        })
+
+    bulk_index(client, documents)
+    return len(documents)
 
 
 def ingest():
-    """Full ingestion pipeline."""
+    """Full ingestion pipeline: load from MinIO -> chunk -> index to OpenSearch."""
+    client = get_opensearch_client()
+    ensure_index(client)
+
     docs = load_documents()
     if not docs:
         raise ValueError("No documents found in MinIO")
+
     chunks = split_documents(docs)
-    vectorstore = build_vectorstore(chunks)
-    bm25_retriever = build_bm25_retriever(chunks)
-    return vectorstore, bm25_retriever, chunks
+    count = index_to_opensearch(chunks)
+
+    return get_doc_count(client)

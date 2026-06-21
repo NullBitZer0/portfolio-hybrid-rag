@@ -9,9 +9,9 @@ LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY")
 LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 LANGFUSE_ENABLED = bool(LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY)
 LLM_MODEL = "llama-3.3-70b-versatile"
-EMBEDDING_MODEL = "BAAI/bge-large-en-v1.5"
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+EMBEDDING_DIM = 384
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-CHROMA_PERSIST_DIR = "./chroma_db"
 CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
 BM25_WEIGHT = 0.4
@@ -19,6 +19,10 @@ VECTOR_WEIGHT = 0.6
 RETRIEVAL_K = 5
 RERANK_TOP_K = 3
 MEMORY_WINDOW = 5
+
+# OpenSearch Configuration
+OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "opensearch:9200")
+OPENSEARCH_INDEX = os.getenv("OPENSEARCH_INDEX", "rag-documents")
 
 # MinIO Configuration
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")

@@ -55,14 +55,14 @@ async def startup():
     print("Initializing Hybrid RAG system...")
     try:
         from src.ingest import ingest
-        vectorstore, bm25_retriever, chunks = ingest()
-        retriever = get_reranked_retriever(vectorstore, bm25_retriever)
+        total_chunks = ingest()
+        retriever = get_reranked_retriever()
         memory = ConversationMemory()
         chain = build_conversational_rag_chain(retriever, memory)
         rag_app["chain"] = chain
         rag_app["memory"] = memory
         rag_app["retriever"] = retriever
-        print(f"Ready! {len(chunks)} chunks loaded.")
+        print(f"Ready! {total_chunks} chunks loaded from OpenSearch.")
     except Exception as e:
         print(f"Warning: {e}. Waiting for worker to index documents.")
 
@@ -238,7 +238,7 @@ button:disabled{background:#475569;cursor:not-allowed}
 </head>
 <body>
 <div class="header">
-<h1>Hybrid RAG</h1><span>BM25 + Vector + Cross-Encoder Re-ranking</span>
+<h1>Hybrid RAG</h1><span>OpenSearch BM25 + k-NN + Cross-Encoder Re-ranking</span>
 </div>
 <div class="toolbar">
 <button onclick="clearMemory()">Clear Memory</button>

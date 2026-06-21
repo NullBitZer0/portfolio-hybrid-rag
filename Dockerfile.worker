@@ -2,10 +2,6 @@ FROM python:3.13-slim AS builder
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl && \
-    rm -rf /var/lib/apt/lists/*
-
 COPY requirements-worker.txt .
 RUN pip install --no-cache-dir --prefix=/install --extra-index-url https://download.pytorch.org/whl/cpu torch && \
     pip install --no-cache-dir --prefix=/install -r requirements-worker.txt
@@ -16,7 +12,7 @@ WORKDIR /app
 
 COPY --from=builder /install /usr/local
 
-COPY worker.py .
+COPY . .
 
 EXPOSE 9000
 

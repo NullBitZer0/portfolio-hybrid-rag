@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.ingest import ingest
 from src.retrieval import get_reranked_retriever
-from src.pipeline import build_conversational_rag_chain, ConversationMemory, format_docs
+from src.pipeline import build_conversational_rag_chain, ConversationMemory
 from src.config import GROQ_API_KEY, LLM_MODEL
 
 
@@ -30,11 +30,9 @@ def build_evaluation_dataset(golden: list, chain, retriever) -> list:
 
         print(f"  Evaluating: {question[:60]}...")
 
-        # Get RAG answer
         result = chain(question)
         answer = result["answer"]
 
-        # Get retrieved contexts
         docs = retriever.invoke(question)
         contexts = [doc.page_content for doc in docs]
 
@@ -57,7 +55,6 @@ def evaluate(dataset: list) -> dict:
         AnswerRelevancy,
         ContextPrecision,
         ContextRecall,
-        LLMContextRecall,
         FactualCorrectness,
     )
     from langchain_groq import ChatGroq
@@ -90,28 +87,23 @@ def main():
     print("  RAGAS Evaluation")
     print("=" * 60)
 
-    # Load golden dataset
     print("\n[1/4] Loading golden dataset...")
     golden = load_golden_dataset()
     print(f"  Loaded {len(golden)} test cases")
 
-    # Initialize RAG system
     print("\n[2/4] Initializing RAG system...")
-    vectorstore, bm25_retriever, chunks = ingest()
-    retriever = get_reranked_retriever(vectorstore, bm25_retriever)
+    total_chunks = ingest()
+    retriever = get_reranked_retriever()
     memory = ConversationMemory()
     chain = build_conversational_rag_chain(retriever, memory)
 
-    # Build evaluation dataset
     print("\n[3/4] Running RAG on test cases...")
     dataset = build_evaluation_dataset(golden, chain, retriever)
     print(f"  Built {len(dataset)} evaluation samples")
 
-    # Run RAGAS evaluation
     print("\n[4/4] Running RAGAS evaluation...")
     result = evaluate(dataset)
 
-    # Print results
     print("\n" + "=" * 60)
     print("  EVALUATION RESULTS")
     print("=" * 60)
@@ -124,7 +116,6 @@ def main():
     avg = sum(scores.values()) / len(scores)
     print(f"\n  {'AVERAGE':25s} {'█' * int(avg * 20)}{'░' * (20 - int(avg * 20))} {avg:.3f}")
 
-    # Save results
     output_path = "evals/evaluation_results.json"
     with open(output_path, "w") as f:
         json.dump(scores, f, indent=2)

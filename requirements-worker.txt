@@ -5,10 +5,9 @@ minio
 httpx
 langchain-text-splitters
 langchain-huggingface
-langchain-chroma
 langchain-community
-chromadb
 sentence-transformers
 pydantic
 pydantic-settings
 python-dotenv
+opensearch-py>=2.0.0

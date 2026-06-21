@@ -1,28 +1,32 @@
-from langchain_classic.retrievers import EnsembleRetriever
-from langchain_community.retrievers import BM25Retriever
-from langchain_chroma import Chroma
+from dataclasses import dataclass, field
+from langchain_core.documents import Document
 from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
-from langchain_classic.retrievers import ContextualCompressionRetriever
-from src.config import BM25_WEIGHT, VECTOR_WEIGHT, RETRIEVAL_K, RERANKER_MODEL, RERANK_TOP_K
+from src.config import RETRIEVAL_K, RERANKER_MODEL, RERANK_TOP_K
 
 
-def build_hybrid_retriever(
-    vectorstore: Chroma,
-    bm25_retriever: BM25Retriever,
-    bm25_weight: float = BM25_WEIGHT,
-    vector_weight: float = VECTOR_WEIGHT,
-    k: int = RETRIEVAL_K,
-) -> EnsembleRetriever:
-    vector_retriever = vectorstore.as_retriever(search_kwargs={"k": k})
-    bm25_retriever.k = k
+@dataclass
+class OpenSearchRetriever:
+    """Retriever that wraps OpenSearch hybrid search and returns LangChain Documents."""
+    k: int = RETRIEVAL_K
 
-    hybrid = EnsembleRetriever(
-        retrievers=[bm25_retriever, vector_retriever],
-        weights=[bm25_weight, vector_weight],
-    )
-    print(f"Hybrid retriever built: BM25({bm25_weight}) + Vector({vector_weight})")
-    return hybrid
+    def invoke(self, query: str) -> list[Document]:
+        from src.opensearch_client import get_opensearch_client, hybrid_search
+        from src.ingest import get_embeddings_model
+
+        client = get_opensearch_client()
+        embeddings = get_embeddings_model()
+        query_vector = embeddings.embed_query(query)
+
+        results = hybrid_search(client, query, query_vector, k=self.k)
+
+        return [
+            Document(
+                page_content=r["content"],
+                metadata={"source": r["source"], "page": r["page"], "score": r["score"]},
+            )
+            for r in results
+        ]
 
 
 def build_reranker(top_k: int = RERANK_TOP_K) -> CrossEncoderReranker:
@@ -32,9 +36,23 @@ def build_reranker(top_k: int = RERANK_TOP_K) -> CrossEncoderReranker:
     return reranker
 
 
-def get_reranked_retriever(vectorstore: Chroma, bm25_retriever: BM25Retriever):
-    hybrid = build_hybrid_retriever(vectorstore, bm25_retriever, k=10)
-    reranker = build_reranker()
-    return ContextualCompressionRetriever(
-        base_compressor=reranker, base_retriever=hybrid
-    )
+class HybridRetriever:
+    """Hybrid retriever: OpenSearch BM25 + k-NN, optionally reranked."""
+
+    def __init__(self, rerank: bool = True, k: int = 10):
+        self.base_retriever = OpenSearchRetriever(k=k)
+        self.reranker = build_reranker() if rerank else None
+        self.k = k
+
+    def invoke(self, query: str) -> list[Document]:
+        docs = self.base_retriever.invoke(query)
+        if self.reranker and docs:
+            docs = self.reranker.compress_documents(docs, query)
+        return docs
+
+
+def get_reranked_retriever(rerank: bool = True) -> HybridRetriever:
+    """Build the hybrid retriever with optional reranking."""
+    retriever = HybridRetriever(rerank=rerank, k=10)
+    print(f"Hybrid retriever built: OpenSearch BM25 + k-NN" + (" + reranker" if rerank else ""))
+    return retriever
