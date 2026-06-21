@@ -10,7 +10,16 @@ from src.pipeline import build_conversational_rag_chain, ConversationMemory
 from src.storage import storage
 
 app = FastAPI(title="Hybrid RAG API", version="1.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://adeeshaperera.me",
+        "https://www.adeeshaperera.me",
+        "http://localhost:3000",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Global state
 rag_app = {"chain": None, "memory": None, "retriever": None}
