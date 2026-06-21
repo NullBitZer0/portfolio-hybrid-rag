@@ -1,26 +1,30 @@
-import google.generativeai as genai
+from google import genai
 from src.config import GEMINI_API_KEY
 
-genai.configure(api_key=GEMINI_API_KEY)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
-EMBEDDING_MODEL = "models/text-embedding-004"
+EMBEDDING_MODEL = "models/gemini-embedding-2"
+EMBEDDING_DIM = 768
 
 
 def embed_texts(texts: list[str]) -> list[list[float]]:
-    """Embed a batch of texts using Gemini text-embedding-004."""
-    result = genai.embed_content(
-        model=EMBEDDING_MODEL,
-        content=texts,
-        task_type="retrieval_document",
-    )
-    return result["embedding"]
+    """Embed a batch of texts using Gemini gemini-embedding-2."""
+    results = []
+    for text in texts:
+        result = client.models.embed_content(
+            model=EMBEDDING_MODEL,
+            contents=[text],
+            config={"task_type": "RETRIEVAL_DOCUMENT", "output_dimensionality": EMBEDDING_DIM},
+        )
+        results.append(result.embeddings[0].values)
+    return results
 
 
 def embed_query(text: str) -> list[float]:
-    """Embed a single query using Gemini text-embedding-004."""
-    result = genai.embed_content(
+    """Embed a single query using Gemini gemini-embedding-2."""
+    result = client.models.embed_content(
         model=EMBEDDING_MODEL,
-        content=text,
-        task_type="retrieval_query",
+        contents=[text],
+        config={"task_type": "RETRIEVAL_QUERY", "output_dimensionality": EMBEDDING_DIM},
     )
-    return result["embedding"]
+    return result.embeddings[0].values

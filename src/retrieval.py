@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from langchain_core.documents import Document
-from src.config import RETRIEVAL_K, COHERE_API_KEY, RERANK_TOP_K
+from src.config import RETRIEVAL_K, COHERE_API_KEY
 
 
 RERANK_TOP_K = 3

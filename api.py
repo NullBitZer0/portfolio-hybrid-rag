@@ -101,7 +101,7 @@ async def shutdown():
 async def upload_file(file: UploadFile = File(...), folder: str = "resume"):
     """Upload a file to MinIO. Worker will auto-index."""
     allowed_extensions = {".pdf", ".txt", ".docx", ".md"}
-    allowed_folders = {"resume", "in_progress_projects", "completed_projects", "uni_projects"}
+    allowed_folders = {"resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"}
     file_ext = os.path.splitext(file.filename)[1].lower()
 
     if file_ext not in allowed_extensions:
@@ -168,7 +168,7 @@ async def list_files(folder: str = None):
 @app.delete("/files/{folder}/{filename}")
 async def delete_file(folder: str, filename: str):
     """Delete a file from MinIO. Worker will auto-remove index."""
-    allowed_folders = {"resume", "in_progress_projects", "completed_projects", "uni_projects"}
+    allowed_folders = {"resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"}
     if folder not in allowed_folders:
         raise HTTPException(400, f"Folder {folder} not allowed")
 
@@ -245,8 +245,9 @@ button:disabled{background:#475569;cursor:not-allowed}
 <button onclick="reindex()">Reindex</button>
 <select id="folderSelect" style="padding:6px 12px;border-radius:8px;background:#1e293b;border:1px solid #334155;color:#e2e8f0;font-size:12px">
 <option value="resume">Resume</option>
-<option value="in_progress_projects">In Progress Projects</option>
-<option value="completed_projects">Completed Projects</option>
+<option value="completed_ml_projects">Completed ML Projects</option>
+<option value="inprogress_ml_projects">In Progress ML Projects</option>
+<option value="certifications">Certifications</option>
 <option value="uni_projects">Uni Projects</option>
 </select>
 <div class="upload-btn"><button>Upload File</button><input type="file" id="fileInput" accept=".pdf,.txt,.docx,.md" onchange="uploadFile(this)"></div>

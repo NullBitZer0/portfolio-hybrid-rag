@@ -18,13 +18,8 @@ INDEX_MAPPING = {
         "index": {
             "number_of_shards": 1,
             "number_of_replicas": 0,
-        },
-        "analysis": {
-            "analyzer": {
-                "default": {
-                    "type": "standard",
-                }
-            }
+            "knn": True,
+            "knn.algo_param.ef_search": 128,
         },
     },
     "mappings": {
@@ -125,14 +120,17 @@ def hybrid_search(client: OpenSearch, query_text: str, query_vector: list, k: in
                             }
                         }
                     }
-                ]
-            }
-        },
-        "knn": {
-            "vector": {
-                "vector": query_vector,
-                "k": k,
-                "boost": VECTOR_WEIGHT,
+                ],
+                "filter": [
+                    {
+                        "knn": {
+                            "vector": {
+                                "vector": query_vector,
+                                "k": k,
+                            }
+                        }
+                    }
+                ],
             }
         },
     }

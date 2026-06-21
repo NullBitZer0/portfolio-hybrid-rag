@@ -22,13 +22,13 @@ from src.opensearch_client import (
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
 MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
-MINIO_BUCKET = os.getenv("MINIO_BUCKET", "rag-documents")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "rag-document")
 DOCLING_URL = os.getenv("DOCLING_URL", "http://docling:5001")
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
 
 # Folder categories
-FOLDERS = ["resume", "in_progress_projects", "completed_projects", "uni_projects"]
+FOLDERS = ["resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"]
 
 # Globals
 minio_client = None
@@ -54,8 +54,8 @@ def download_from_minio(filename: str, local_path: str):
 def extract_with_docling(file_path: str) -> str:
     url = f"{DOCLING_URL}/v1/convert/file"
     with open(file_path, "rb") as f:
-        files = {"files": (os.path.basename(file_path), f, "application/octet-stream")}
-        data = {"output_formats": ["markdown"]}
+        files = {"files": (os.path.basename(file_path), f, "application/pdf")}
+        data = {"output_formats": '["markdown"]'}
         response = httpx.post(url, files=files, data=data, timeout=120)
         response.raise_for_status()
     result = response.json()
@@ -104,7 +104,7 @@ def index_chunks_to_opensearch(chunks: list, source: str):
 
 def reindex_all():
     client = get_minio_client()
-    objects = client.list_objects(MINIO_BUCKET)
+    objects = client.list_objects(MINIO_BUCKET, recursive=True)
 
     # Clear existing index
     from src.opensearch_client import delete_index

@@ -161,9 +161,9 @@ def create_project_pdf():
         "- Monitoring and observability are as important as model performance\n"
         "- Cross-functional collaboration with business stakeholders is critical")
 
-    os.makedirs("data/ml_projects", exist_ok=True)
-    pdf.output("data/ml_projects/fraudguard_project.pdf")
-    print("Created: data/ml_projects/fraudguard_project.pdf")
+    os.makedirs("data/completed_ml_projects", exist_ok=True)
+    pdf.output("data/completed_ml_projects/fraudguard_project.pdf")
+    print("Created: data/completed_ml_projects/fraudguard_project.pdf")
 
 
 def create_mednlp_pdf():
@@ -241,9 +241,9 @@ def create_mednlp_pdf():
         "- Enabled real-time clinical decision support alerts\n"
         "- Improved quality metrics reporting accuracy by 35%")
 
-    os.makedirs("data/ml_projects", exist_ok=True)
-    pdf.output("data/ml_projects/mednlp_project.pdf")
-    print("Created: data/ml_projects/mednlp_project.pdf")
+    os.makedirs("data/completed_ml_projects", exist_ok=True)
+    pdf.output("data/completed_ml_projects/mednlp_project.pdf")
+    print("Created: data/completed_ml_projects/mednlp_project.pdf")
 
 
 def create_fun_projects_pdf():
@@ -290,9 +290,9 @@ def create_fun_projects_pdf():
         "Duration: 1 week\n"
         "Status: Completed")
 
-    os.makedirs("data/fun_projects", exist_ok=True)
-    pdf.output("data/fun_projects/fun_projects.pdf")
-    print("Created: data/fun_projects/fun_projects.pdf")
+    os.makedirs("data/inprogress_ml_projects", exist_ok=True)
+    pdf.output("data/inprogress_ml_projects/fun_projects.pdf")
+    print("Created: data/inprogress_ml_projects/fun_projects.pdf")
 
 
 def create_campus_projects_pdf():
@@ -344,9 +344,9 @@ def create_campus_projects_pdf():
         "Duration: 2 months\n"
         "Grade: A+")
 
-    os.makedirs("data/campus_projects", exist_ok=True)
-    pdf.output("data/campus_projects/campus_projects.pdf")
-    print("Created: data/campus_projects/campus_projects.pdf")
+    os.makedirs("data/uni_projects", exist_ok=True)
+    pdf.output("data/uni_projects/campus_projects.pdf")
+    print("Created: data/uni_projects/campus_projects.pdf")
 
 
 def create_portfolio_projects_pdf():
@@ -403,9 +403,9 @@ def create_portfolio_projects_pdf():
         "- 4.8/5 app store rating\n\n"
         "App Store: Available on iOS and Android")
 
-    os.makedirs("data/portfolio_projects", exist_ok=True)
-    pdf.output("data/portfolio_projects/portfolio_projects.pdf")
-    print("Created: data/portfolio_projects/portfolio_projects.pdf")
+    os.makedirs("data/inprogress_ml_projects", exist_ok=True)
+    pdf.output("data/inprogress_ml_projects/portfolio_projects.pdf")
+    print("Created: data/inprogress_ml_projects/portfolio_projects.pdf")
 
 
 def create_practical_projects_pdf():
@@ -468,9 +468,9 @@ def create_practical_projects_pdf():
         "- Saved 3 FTE equivalent\n\n"
         "Client: Insurance Company")
 
-    os.makedirs("data/practical_projects", exist_ok=True)
-    pdf.output("data/practical_projects/practical_projects.pdf")
-    print("Created: data/practical_projects/practical_projects.pdf")
+    os.makedirs("data/inprogress_ml_projects", exist_ok=True)
+    pdf.output("data/inprogress_ml_projects/practical_projects.pdf")
+    print("Created: data/inprogress_ml_projects/practical_projects.pdf")
 
 
 if __name__ == "__main__":
