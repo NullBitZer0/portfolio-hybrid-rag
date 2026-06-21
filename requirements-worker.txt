@@ -12,4 +12,3 @@ sentence-transformers
 pydantic
 pydantic-settings
 python-dotenv
-torch

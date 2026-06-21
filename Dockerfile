@@ -3,7 +3,8 @@ FROM python:3.13-slim AS builder
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+RUN pip install --no-cache-dir --prefix=/install --extra-index-url https://download.pytorch.org/whl/cpu torch && \
+    pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 FROM python:3.13-slim
 
