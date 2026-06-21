@@ -12,11 +12,7 @@ from src.storage import storage
 app = FastAPI(title="Hybrid RAG API", version="1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://adeeshaperera.me",
-        "https://www.adeeshaperera.me",
-        "http://localhost:3000",
-    ],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
