@@ -28,7 +28,7 @@ CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
 
 # Folder categories
-FOLDERS = ["resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"]
+FOLDERS = ["", "resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"]
 
 # Globals
 minio_client = None

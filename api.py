@@ -101,17 +101,15 @@ async def shutdown():
 async def upload_file(file: UploadFile = File(...), folder: str = "resume"):
     """Upload a file to MinIO. Worker will auto-index."""
     allowed_extensions = {".pdf", ".txt", ".docx", ".md"}
-    allowed_folders = {"resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"}
+    allowed_folders = {"", "resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"}
     file_ext = os.path.splitext(file.filename)[1].lower()
 
     if file_ext not in allowed_extensions:
         raise HTTPException(400, f"File type {file_ext} not allowed. Use: {allowed_extensions}")
-    if folder not in allowed_folders:
-        raise HTTPException(400, f"Folder {folder} not allowed. Use: {allowed_folders}")
 
     try:
         content = await file.read()
-        object_name = f"{folder}/{file.filename}"
+        object_name = f"{folder}/{file.filename}" if folder else file.filename
         storage.upload_bytes(content, object_name, content_type=file.content_type or "application/octet-stream")
         return {
             "filename": file.filename,
