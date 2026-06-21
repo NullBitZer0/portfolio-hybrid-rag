@@ -15,7 +15,10 @@ class MinIOStorage:
             secure=MINIO_SECURE,
         )
         self.bucket = MINIO_BUCKET
-        self._ensure_bucket()
+        try:
+            self._ensure_bucket()
+        except Exception as e:
+            print(f"Warning: MinIO not ready ({e}). Will retry on first use.")
 
     def _ensure_bucket(self):
         """Create bucket if it doesn't exist."""
@@ -23,11 +26,20 @@ class MinIOStorage:
             self.client.make_bucket(self.bucket)
             print(f"Created MinIO bucket: {self.bucket}")
 
+    def _retry_ensure_bucket(self):
+        """Retry bucket creation."""
+        try:
+            if not self.client.bucket_exists(self.bucket):
+                self.client.make_bucket(self.bucket)
+                print(f"Created MinIO bucket: {self.bucket}")
+        except Exception:
+            pass
+
     def upload_file(self, file_path: str, object_name: str = None) -> str:
         """Upload a file to MinIO."""
         if object_name is None:
             object_name = os.path.basename(file_path)
-
+        self._retry_ensure_bucket()
         self.client.fput_object(self.bucket, object_name, file_path)
         print(f"Uploaded {file_path} to {self.bucket}/{object_name}")
         return object_name
@@ -35,6 +47,7 @@ class MinIOStorage:
     def upload_bytes(self, data: bytes, object_name: str, content_type: str = "application/octet-stream") -> str:
         """Upload bytes to MinIO."""
         import io
+        self._retry_ensure_bucket()
         self.client.put_object(
             self.bucket,
             object_name,
