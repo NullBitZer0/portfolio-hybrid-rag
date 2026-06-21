@@ -1,6 +1,6 @@
 import sys
 from src.ingest import ingest
-from src.retrieval import get_retriever, get_reranked_retriever
+from src.retrieval import get_reranked_retriever
 from src.pipeline import build_conversational_rag_chain, ConversationMemory
 
 
@@ -12,7 +12,7 @@ def cli_mode():
     print("=" * 60)
 
     print("\n[1/3] Ingesting documents...")
-    vectorstore, bm25_retriever, chunks = ingest("./data")
+    vectorstore, bm25_retriever, chunks = ingest()
 
     print("[2/3] Building hybrid retriever + reranker...")
     retriever = get_reranked_retriever(vectorstore, bm25_retriever)
@@ -32,8 +32,14 @@ def cli_mode():
             continue
         if not question:
             continue
-        answer = chain(question)
-        print(f"\nAssistant: {answer}\n")
+        result = chain(question)
+        print(f"\nAssistant: {result['answer']}")
+        print(f"[Confidence: {result['confidence']} | Mode: {result['mode']}", end="")
+        if result.get("iterations", 1) > 1:
+            print(f" | Iterations: {result['iterations']}", end="")
+        if result.get("flags"):
+            print(f" | Flags: {result['flags']}", end="")
+        print("]\n")
 
 
 def api_mode():
@@ -43,7 +49,7 @@ def api_mode():
     print("  Hybrid RAG - API Mode")
     print("  http://localhost:8000")
     print("=" * 60)
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)
 
 
 if __name__ == "__main__":

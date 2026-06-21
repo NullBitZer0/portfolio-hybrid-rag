@@ -246,9 +246,240 @@ def create_mednlp_pdf():
     print("Created: data/ml_projects/mednlp_project.pdf")
 
 
+def create_fun_projects_pdf():
+    pdf = SamplePDF()
+    pdf.title = "Adeesha - Fun Projects"
+    pdf.add_page()
+
+    pdf.section("Project 1: AI Music Generator",
+        "An AI-powered music composition tool that generates original melodies "
+        "based on user input moods and styles.\n\n"
+        "Tech Stack: Python, TensorFlow, MIDI processing, Flask\n"
+        "Features:\n"
+        "- Mood-based music generation (happy, sad, energetic)\n"
+        "- Multiple genre support (jazz, classical, lo-fi)\n"
+        "- Real-time playback and MIDI export\n"
+        "- Web interface with interactive controls\n\n"
+        "Duration: 2 weeks\n"
+        "Status: Completed\n"
+        "GitHub: github.com/adeesha/ai-music-gen")
+
+    pdf.section("Project 2: Retro Game AI Bot",
+        "A reinforcement learning agent that learns to play classic arcade games "
+        "using Deep Q-Networks.\n\n"
+        "Tech Stack: Python, PyTorch, OpenAI Gym, Atari\n"
+        "Features:\n"
+        "- Self-learning agent using DQN algorithm\n"
+        "- Experience replay and target network\n"
+        "- Training visualization with TensorBoard\n"
+        "- Score tracking and model checkpoints\n\n"
+        "Results:\n"
+        "- Achieved human-level performance on Breakout\n"
+        "- Trained 10M frames in 4 hours on single GPU\n\n"
+        "Duration: 3 weeks\n"
+        "Status: Completed")
+
+    pdf.section("Project 3: Smart Recipe Generator",
+        "An NLP-powered app that generates recipes based on available ingredients.\n\n"
+        "Tech Stack: Python, Hugging Face Transformers, FastAPI, React\n"
+        "Features:\n"
+        "- Ingredient-based recipe suggestions\n"
+        "- Dietary restriction filters\n"
+        "- Step-by-step cooking instructions\n"
+        "- Nutritional information calculator\n\n"
+        "Duration: 1 week\n"
+        "Status: Completed")
+
+    os.makedirs("data/fun_projects", exist_ok=True)
+    pdf.output("data/fun_projects/fun_projects.pdf")
+    print("Created: data/fun_projects/fun_projects.pdf")
+
+
+def create_campus_projects_pdf():
+    pdf = SamplePDF()
+    pdf.title = "Adeesha - Campus Projects"
+    pdf.add_page()
+
+    pdf.section("Project 1: Campus Event Management System",
+        "A full-stack web application for managing university events, "
+        "registrations, and attendance tracking.\n\n"
+        "Tech Stack: Django, PostgreSQL, React, Docker\n"
+        "Features:\n"
+        "- Event creation and management\n"
+        "- Student registration and QR code check-in\n"
+        "- Real-time attendance tracking\n"
+        "- Analytics dashboard for organizers\n"
+        "- Email notifications and reminders\n\n"
+        "Team Size: 4 members\n"
+        "Role: Backend Lead\n"
+        "Duration: 4 months\n"
+        "Grade: A+")
+
+    pdf.section("Project 2: Distributed File Storage System",
+        "A Google Drive-like file storage system with chunking, replication, "
+        "and fault tolerance.\n\n"
+        "Tech Stack: Go, gRPC, Redis, MinIO\n"
+        "Features:\n"
+        "- File upload/download with chunking\n"
+        "- Data replication across nodes\n"
+        "- Automatic failover and recovery\n"
+        "- Access control and sharing permissions\n"
+        "- Web interface for file management\n\n"
+        "Team Size: 3 members\n"
+        "Role: System Architect\n"
+        "Duration: 3 months\n"
+        "Grade: A")
+
+    pdf.section("Project 3: Real-time Chat Application",
+        "A WhatsApp-like messaging app with end-to-end encryption.\n\n"
+        "Tech Stack: Node.js, Socket.io, MongoDB, React Native\n"
+        "Features:\n"
+        "- Real-time messaging with WebSocket\n"
+        "- End-to-end encryption (Signal Protocol)\n"
+        "- Group chats and media sharing\n"
+        "- Online status and read receipts\n"
+        "- Message search and archive\n\n"
+        "Team Size: 2 members\n"
+        "Role: Full Stack Developer\n"
+        "Duration: 2 months\n"
+        "Grade: A+")
+
+    os.makedirs("data/campus_projects", exist_ok=True)
+    pdf.output("data/campus_projects/campus_projects.pdf")
+    print("Created: data/campus_projects/campus_projects.pdf")
+
+
+def create_portfolio_projects_pdf():
+    pdf = SamplePDF()
+    pdf.title = "Adeesha - Portfolio Projects"
+    pdf.add_page()
+
+    pdf.section("Project 1: ML-Powered Resume Scanner",
+        "An AI tool that parses resumes and matches candidates to job descriptions "
+        "using NLP and semantic similarity.\n\n"
+        "Tech Stack: Python, spaCy, Sentence Transformers, FastAPI, PostgreSQL\n"
+        "Features:\n"
+        "- Resume parsing (PDF, DOCX)\n"
+        "- Skill extraction and matching\n"
+        "- Semantic similarity scoring\n"
+        "- Batch processing for recruiters\n"
+        "- REST API for integration\n\n"
+        "Impact:\n"
+        "- Reduced screening time by 80%\n"
+        "- Processed 10,000+ resumes\n"
+        "- 95% accuracy on skill matching\n\n"
+        "Live Demo: resume-scanner.adeesha.dev\n"
+        "GitHub: github.com/adeesha/resume-scanner")
+
+    pdf.section("Project 2: Sentiment Analysis Dashboard",
+        "A real-time dashboard analyzing social media sentiment about brands "
+        "and products.\n\n"
+        "Tech Stack: Python, Transformers, Kafka, React, D3.js\n"
+        "Features:\n"
+        "- Real-time tweet analysis\n"
+        "- Sentiment trend visualization\n"
+        "- Alert system for negative sentiment\n"
+        "- Competitor comparison analytics\n"
+        "- Export reports (PDF, CSV)\n\n"
+        "Impact:\n"
+        "- Monitored 100K+ tweets daily\n"
+        "- Detected PR crises 6 hours faster\n"
+        "- Used by 3 marketing teams\n\n"
+        "Live Demo: sentiment.adeesha.dev")
+
+    pdf.section("Project 3: Personal Finance Tracker",
+        "An intelligent expense tracker with automated categorization "
+        "and budget recommendations.\n\n"
+        "Tech Stack: Python, scikit-learn, React Native, Firebase\n"
+        "Features:\n"
+        "- Bank statement parsing (CSV, PDF)\n"
+        "- Auto-categorization using ML\n"
+        "- Budget forecasting and alerts\n"
+        "- Investment portfolio tracking\n"
+        "- Monthly financial reports\n\n"
+        "Impact:\n"
+        "- 500+ active users\n"
+        "- Saved users average 15% on expenses\n"
+        "- 4.8/5 app store rating\n\n"
+        "App Store: Available on iOS and Android")
+
+    os.makedirs("data/portfolio_projects", exist_ok=True)
+    pdf.output("data/portfolio_projects/portfolio_projects.pdf")
+    print("Created: data/portfolio_projects/portfolio_projects.pdf")
+
+
+def create_practical_projects_pdf():
+    pdf = SamplePDF()
+    pdf.title = "Adeesha - Practical Projects"
+    pdf.add_page()
+
+    pdf.section("Project 1: Customer Churn Prediction System",
+        "A production ML system predicting customer churn for a SaaS company "
+        "with automated retraining pipeline.\n\n"
+        "Tech Stack: Python, XGBoost, Airflow, MLflow, AWS\n"
+        "Business Problem:\n"
+        "- 15% monthly churn rate costing $500K annually\n"
+        "- No visibility into at-risk customers\n\n"
+        "Solution:\n"
+        "- Feature engineering from user behavior logs\n"
+        "- XGBoost model with 89% recall\n"
+        "- Automated daily predictions\n"
+        "- Email alerts for high-risk customers\n\n"
+        "Impact:\n"
+        "- Reduced churn by 22% in 3 months\n"
+        "- Saved $110K in first quarter\n"
+        "- ROI: 5x investment\n\n"
+        "Client: SaaS Startup (NDA)")
+
+    pdf.section("Project 2: Inventory Optimization System",
+        "An ML-powered inventory management system for retail chain "
+        "optimizing stock levels and reorder points.\n\n"
+        "Tech Stack: Python, Prophet, PostgreSQL, Django, Docker\n"
+        "Business Problem:\n"
+        "- $2M annual loss from overstocking/understocking\n"
+        "- Manual ordering based on gut feeling\n\n"
+        "Solution:\n"
+        "- Time series forecasting for demand prediction\n"
+        "- Safety stock optimization\n"
+        "- Automated reorder recommendations\n"
+        "- Dashboard for inventory managers\n\n"
+        "Impact:\n"
+        "- Reduced inventory costs by 18%\n"
+        "- Improved stock availability to 98%\n"
+        "- Freed up $400K in working capital\n\n"
+        "Client: Retail Chain (50 stores)")
+
+    pdf.section("Project 3: Document Processing Pipeline",
+        "An automated document extraction system for insurance claims "
+        "processing.\n\n"
+        "Tech Stack: Python, Tesseract, Transformers, FastAPI, Redis\n"
+        "Business Problem:\n"
+        "- Manual processing of 1000+ claims daily\n"
+        "- Average processing time: 15 minutes per claim\n"
+        "- High error rate in data entry\n\n"
+        "Solution:\n"
+        "- OCR for document digitization\n"
+        "- NLP for field extraction\n"
+        "- Validation rules engine\n"
+        "- Integration with claims management system\n\n"
+        "Impact:\n"
+        "- Reduced processing time to 2 minutes per claim\n"
+        "- Error rate reduced by 85%\n"
+        "- Saved 3 FTE equivalent\n\n"
+        "Client: Insurance Company")
+
+    os.makedirs("data/practical_projects", exist_ok=True)
+    pdf.output("data/practical_projects/practical_projects.pdf")
+    print("Created: data/practical_projects/practical_projects.pdf")
+
+
 if __name__ == "__main__":
     print("Generating sample PDFs...")
     create_resume_pdf()
     create_project_pdf()
     create_mednlp_pdf()
-    print("\nDone! 3 PDF files created in data/")
+    create_fun_projects_pdf()
+    create_campus_projects_pdf()
+    create_portfolio_projects_pdf()
+    create_practical_projects_pdf()
+    print("\nDone! 7 PDF files created in data/")
