@@ -24,9 +24,15 @@ def load_documents() -> list:
             try:
                 storage.download_file(name, tmp.name)
                 if name.endswith('.pdf'):
-                    documents.extend(PyPDFLoader(tmp.name).load())
+                    docs = PyPDFLoader(tmp.name).load()
+                    for doc in docs:
+                        doc.metadata["source"] = name
+                    documents.extend(docs)
                 elif name.endswith('.txt'):
-                    documents.extend(TextLoader(tmp.name).load())
+                    docs = TextLoader(tmp.name).load()
+                    for doc in docs:
+                        doc.metadata["source"] = name
+                    documents.extend(docs)
             finally:
                 os.unlink(tmp.name)
 

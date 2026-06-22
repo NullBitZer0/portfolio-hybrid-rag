@@ -62,15 +62,15 @@ def rag_pipeline(question: str, retriever) -> dict:
         with trace("generate", {"query": cleaned}) as span:
             from langchain_core.prompts import ChatPromptTemplate
             prompt = ChatPromptTemplate.from_template(
-                """You are Adeesha's portfolio assistant.
+                """You are Adeesha's portfolio assistant. Answer using ONLY the context below.
 
-Answer only using retrieved documents. Be concise - max 3-4 sentences.
-
-If the question is unrelated to Adeesha, his projects,
-skills, experience, resume, or education, politely refuse.
-
-Do not answer general knowledge questions.
-Do not write code unrelated to the portfolio.
+RULES:
+- Extract specific facts, names, technologies, metrics from the context
+- If asked about projects, list each project with its name and key details
+- If asked about skills, list specific technologies and tools
+- Never describe the RAG system itself - answer about Adeesha's work
+- If the context doesn't contain enough info, say "I don't have that information"
+- Be specific and factual - no vague meta-descriptions
 
 Context:
 {context}
