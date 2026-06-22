@@ -3,7 +3,7 @@ import hashlib
 import tempfile
 from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from src.config import CHUNK_SIZE, CHUNK_OVERLAP
+from src.config import CHUNK_SIZE, CHUNK_OVERLAP, PARENT_CHUNK_SIZE
 from src.embeddings import embed_texts
 from src.opensearch_client import get_opensearch_client, ensure_index, bulk_index, get_doc_count
 
@@ -35,26 +35,41 @@ def load_documents() -> list:
 
 
 def split_documents(documents: list) -> list:
-    """Split documents into chunks."""
-    splitter = RecursiveCharacterTextSplitter(
+    """Split documents into parent chunks, then child chunks within each parent."""
+    parent_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=PARENT_CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+        length_function=len,
+        separators=["\n\n", "\n", ". ", " ", ""],
+    )
+    child_splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
         length_function=len,
         separators=["\n\n", "\n", ". ", " ", ""],
     )
-    chunks = splitter.split_documents(documents)
-    print(f"Split into {len(chunks)} chunks")
-    return chunks
+
+    parent_chunks = parent_splitter.split_documents(documents)
+    print(f"Split into {len(parent_chunks)} parent chunks")
+
+    child_chunks = []
+    for parent in parent_chunks:
+        children = child_splitter.split_documents([parent])
+        for child in children:
+            child.metadata["parent_content"] = parent.page_content
+        child_chunks.extend(children)
+
+    print(f"Split into {len(child_chunks)} child chunks")
+    return child_chunks
 
 
 def index_to_opensearch(chunks: list) -> int:
-    """Index chunks into OpenSearch with Gemini embeddings."""
+    """Index child chunks into OpenSearch with Gemini embeddings and parent content."""
     client = get_opensearch_client()
     ensure_index(client)
 
     texts = [c.page_content for c in chunks]
 
-    # Batch embed (Gemini supports batch)
     all_vectors = []
     batch_size = 100
     for i in range(0, len(texts), batch_size):
@@ -73,6 +88,7 @@ def index_to_opensearch(chunks: list) -> int:
             "source": chunk.metadata.get("source", "unknown"),
             "page": chunk.metadata.get("page", 0),
             "chunk_id": i,
+            "parent_content": chunk.metadata.get("parent_content", chunk.page_content),
         })
 
     bulk_index(client, documents)

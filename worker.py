@@ -11,7 +11,7 @@ from minio import Minio
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src.config import (
     MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET,
-    DOCLING_URL, CHUNK_SIZE, CHUNK_OVERLAP, FOLDERS, ALLOWED_EXTENSIONS,
+    DOCLING_URL, CHUNK_SIZE, CHUNK_OVERLAP, PARENT_CHUNK_SIZE, FOLDERS, ALLOWED_EXTENSIONS,
 )
 from src.embeddings import embed_texts
 from src.opensearch_client import (
@@ -56,17 +56,33 @@ def extract_with_docling(file_path: str) -> str:
 
 
 def chunk_text(text: str) -> list:
-    splitter = RecursiveCharacterTextSplitter(
+    """Split text into parent chunks, then child chunks within each parent."""
+    parent_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=PARENT_CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+        length_function=len,
+        separators=["\n\n", "\n", ". ", " ", ""],
+    )
+    child_splitter = RecursiveCharacterTextSplitter(
         chunk_size=CHUNK_SIZE,
         chunk_overlap=CHUNK_OVERLAP,
         length_function=len,
         separators=["\n\n", "\n", ". ", " ", ""],
     )
-    return splitter.create_documents([text])
+
+    parent_chunks = parent_splitter.create_documents([text])
+    child_chunks = []
+    for parent in parent_chunks:
+        children = child_splitter.split_documents([parent])
+        for child in children:
+            child.metadata["parent_content"] = parent.page_content
+        child_chunks.extend(children)
+
+    return child_chunks
 
 
 def index_chunks_to_opensearch(chunks: list, source: str):
-    """Embed chunks with Gemini and index into OpenSearch."""
+    """Embed child chunks with Gemini and index into OpenSearch with parent content."""
     client = get_opensearch_client()
     ensure_index(client)
 
@@ -89,6 +105,7 @@ def index_chunks_to_opensearch(chunks: list, source: str):
             "source": source,
             "page": chunk.metadata.get("page", 0),
             "chunk_id": i,
+            "parent_content": chunk.metadata.get("parent_content", chunk.page_content),
         })
 
     bulk_index(client, documents)

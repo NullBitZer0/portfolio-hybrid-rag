@@ -41,6 +41,7 @@ INDEX_MAPPING = {
             "source": {"type": "keyword"},
             "page": {"type": "integer"},
             "chunk_id": {"type": "integer"},
+            "parent_content": {"type": "text", "analyzer": "standard"},
         }
     },
 }
@@ -79,6 +80,7 @@ def bulk_index(client: OpenSearch, documents: list[dict]):
             "source": doc["source"],
             "page": doc["page"],
             "chunk_id": doc["chunk_id"],
+            "parent_content": doc.get("parent_content", doc["content"]),
         })
     response = client.bulk(body=actions, refresh="wait_for")
     errors = response.get("errors", False)
@@ -124,7 +126,7 @@ def hybrid_search(client: OpenSearch, query_text: str, query_vector: list, k: in
     results = []
     for hit in response["hits"]["hits"]:
         results.append({
-            "content": hit["_source"]["content"],
+            "content": hit["_source"].get("parent_content", hit["_source"]["content"]),
             "source": hit["_source"]["source"],
             "page": hit["_source"]["page"],
             "score": hit["_score"],
