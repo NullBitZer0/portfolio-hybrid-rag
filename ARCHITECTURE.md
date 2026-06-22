@@ -121,7 +121,7 @@ A production-grade Retrieval-Augmented Generation system with Docling document e
 |-----------|------------|
 | Trigger | MinIO webhook on file upload/delete |
 | PDF Loader | Docling (via API) |
-| Chunking | RecursiveCharacterTextSplitter (500 chars, 100 overlap) |
+| Chunking | Parent-child: 2000 char parents (LLM context) + 500 char children (search precision) |
 | Embeddings | Gemini gemini-embedding-2 (768-dim) |
 | Vector Store | OpenSearch k-NN index |
 | Keyword Index | OpenSearch BM25 (built-in) |
