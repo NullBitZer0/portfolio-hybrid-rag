@@ -1,15 +1,29 @@
 import os
 import hashlib
 import tempfile
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
+from pathlib import Path
+from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from src.config import CHUNK_SIZE, CHUNK_OVERLAP, PARENT_CHUNK_SIZE
+from src.config import CHUNK_SIZE, CHUNK_OVERLAP, PARENT_CHUNK_SIZE, DOCLING_URL
 from src.embeddings import embed_texts
 from src.opensearch_client import get_opensearch_client, ensure_index, bulk_index, get_doc_count
 
 
+def extract_with_docling(file_path: str) -> str:
+    import httpx
+    url = f"{DOCLING_URL}/v1/convert/file"
+    with open(file_path, "rb") as f:
+        files = {"files": (os.path.basename(file_path), f, "application/pdf")}
+        data = {"output_formats": '["markdown"]'}
+        response = httpx.post(url, files=files, data=data, timeout=120)
+        response.raise_for_status()
+    result = response.json()
+    document = result.get("document", {})
+    return document.get("md_content", "")
+
+
 def load_documents() -> list:
-    """Load all documents from MinIO."""
+    """Load all documents from MinIO using Docling."""
     from src.storage import storage
 
     documents = []
@@ -24,19 +38,18 @@ def load_documents() -> list:
             try:
                 storage.download_file(name, tmp.name)
                 if name.endswith('.pdf'):
-                    docs = PyPDFLoader(tmp.name).load()
-                    for doc in docs:
-                        doc.metadata["source"] = name
-                    documents.extend(docs)
-                elif name.endswith('.txt'):
-                    docs = TextLoader(tmp.name).load()
-                    for doc in docs:
-                        doc.metadata["source"] = name
-                    documents.extend(docs)
+                    text = extract_with_docling(tmp.name)
+                else:
+                    with open(tmp.name, 'r', errors='ignore') as f:
+                        text = f.read()
+
+                if text:
+                    doc = Document(page_content=text, metadata={"source": name})
+                    documents.append(doc)
             finally:
                 os.unlink(tmp.name)
 
-    print(f"Loaded {len(documents)} documents from MinIO")
+    print(f"Loaded {len(documents)} documents from MinIO via Docling")
     return documents
 
 
