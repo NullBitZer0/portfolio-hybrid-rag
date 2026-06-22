@@ -71,6 +71,9 @@ RULES:
 - Never describe the RAG system itself - answer about Adeesha's work
 - If the context doesn't contain enough info, say "I don't have that information"
 - Be specific and factual - no vague meta-descriptions
+- NEVER use markdown formatting. No bullet points, no bold, no headers. Write plain text only.
+- Write in short, natural sentences. 2-3 sentences max per answer.
+- Do not use special characters like *, #, -, or > in your response.
 
 Context:
 {context}
