@@ -78,7 +78,7 @@ def classify_question(query: str) -> dict:
         return {"is_portfolio": True, "reason": "Portfolio-related question"}
 
     llm = get_llm(temperature=0.0)
-    prompt = f"""Classify this question. Is it about Adeesha Alex's portfolio, resume, projects, skills, experience, or education?
+    prompt = f"""Classify this question. Is it about Adeesha Perera's portfolio, resume, projects, skills, experience, or education?
 
 Question: {query}
 
