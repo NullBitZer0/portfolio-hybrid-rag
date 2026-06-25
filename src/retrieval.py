@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from langchain_core.documents import Document
-from src.config import RETRIEVAL_K, COHERE_API_KEY
+from src.config import RETRIEVAL_K, COHERE_API_KEY, USE_HYDE
 
 
 RERANK_TOP_K = 3
@@ -16,9 +16,16 @@ class OpenSearchRetriever:
         from src.embeddings import embed_query
 
         client = get_opensearch_client()
-        query_vector = embed_query(query)
 
-        results = hybrid_search(client, query, query_vector, k=self.k)
+        if USE_HYDE:
+            from src.hyde import generate_hypothetical_answer
+            search_query = generate_hypothetical_answer(query)
+            print(f"HyDE: '{query}' -> '{search_query[:80]}...'")
+        else:
+            search_query = query
+
+        query_vector = embed_query(search_query)
+        results = hybrid_search(client, search_query, query_vector, k=self.k)
 
         return [
             Document(

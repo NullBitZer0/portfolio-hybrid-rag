@@ -18,6 +18,7 @@ BM25_WEIGHT = 0.4
 VECTOR_WEIGHT = 0.6
 RETRIEVAL_K = 5
 MEMORY_WINDOW = 5
+USE_HYDE = True
 
 # OpenSearch Configuration
 OPENSEARCH_HOST = os.getenv("OPENSEARCH_HOST", "opensearch:9200")
