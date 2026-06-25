@@ -27,7 +27,7 @@ HARMFUL_PATTERNS = [
 ]
 
 PORTFOLIO_KEYWORDS = [
-    "alexa", "adeesha", "alex", "resume", "portfolio", "project",
+    "adeesha", "resume", "portfolio", "project",
     "experience", "skill", "education", "work", "job", "career",
     "ml", "machine learning", "data", "engineer", "scientist",
     "fraud", "mednlp", "recsys", "nlp", "deep learning",

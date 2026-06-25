@@ -46,6 +46,7 @@ class QueryResponse(BaseModel):
     confidence: float = 0.0
     mode: str = "unknown"
     sources: list[str] = []
+    pages: list[str] = []
     flags: list[str] = []
 
 
@@ -77,12 +78,12 @@ async def query_rag(req: QueryRequest, request: Request):
     if not rag_app["chain"]:
         raise HTTPException(503, "RAG system not initialized. Wait for worker to index documents.")
     result = rag_app["chain"](req.question)
-    sources = [doc.metadata.get("source", "") for doc in rag_app["retriever"].invoke(req.question)]
     return QueryResponse(
         answer=result["answer"],
         confidence=result.get("confidence", 0.0),
         mode=result.get("mode", "unknown"),
-        sources=list(set(sources)),
+        sources=result.get("sources", []),
+        pages=result.get("pages", []),
         flags=result.get("flags", []),
     )
 

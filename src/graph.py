@@ -49,7 +49,9 @@ def rag_pipeline(question: str, retriever) -> dict:
     with trace("retrieve", {"query": cleaned}) as span:
         docs = retriever.invoke(cleaned)
         context = format_docs(docs)
-        span.update(output={"docs_count": len(docs)})
+        sources = list(set(doc.metadata.get("source", "") for doc in docs))
+        pages = list(set(str(doc.metadata.get("page", "")) for doc in docs if doc.metadata.get("source")))
+        span.update(output={"docs_count": len(docs), "sources": sources})
 
     from src.cache import llm_cache
     cached = llm_cache.get(cleaned, context)
@@ -102,4 +104,6 @@ Answer:"""
         "strategy": strategy,
         "blocked": False,
         "flags": [],
+        "sources": sources,
+        "pages": pages,
     }
