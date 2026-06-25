@@ -11,5 +11,11 @@ Do not say "I don't know" or hedge. Just write a direct answer.
 Question: {query}
 
 Answer:"""
-    response = llm.invoke(prompt)
-    return response.content.strip()
+    try:
+        response = llm.invoke(prompt)
+        answer = response.content.strip()
+        if len(answer) < 5:
+            return query
+        return answer
+    except Exception:
+        return query

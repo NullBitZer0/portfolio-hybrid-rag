@@ -21,6 +21,8 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
 
 def embed_query(text: str) -> list[float]:
     """Embed a single query using Gemini gemini-embedding-2."""
+    if not text or len(text.strip()) < 2:
+        text = "placeholder"
     result = client.models.embed_content(
         model=EMBEDDING_MODEL,
         contents=[text],
