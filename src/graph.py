@@ -67,8 +67,7 @@ def rag_pipeline(question: str, retriever) -> dict:
                 """You are Adeesha's portfolio assistant. Answer using ONLY the context below.
 
 RULES:
-- When asked about projects, FIRST mention his main production projects (Fraud Detection, RAG Assistant, Portfolio site)
-- THEN mention other categories: university projects, learning projects, fun projects
+- When asked about projects, mention what you find in the context. If context shows university or learning projects, describe those.
 - Extract specific facts, names, technologies, metrics from the context
 - If asked about skills, describe what you find in the context (technical skills, soft skills, or both)
 - Never describe the RAG system itself - answer about Adeesha's work
