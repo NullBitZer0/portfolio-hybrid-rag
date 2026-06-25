@@ -56,15 +56,17 @@ async def startup():
     """Initialize RAG system on server start."""
     print("Initializing Hybrid RAG system...")
     try:
-        from src.ingest import ingest
-        total_chunks = ingest()
+        from src.opensearch_client import get_opensearch_client, ensure_index, get_doc_count
+        client = get_opensearch_client()
+        ensure_index(client)
+        doc_count = get_doc_count(client)
         retriever = get_reranked_retriever()
         memory = ConversationMemory()
         chain = build_conversational_rag_chain(retriever, memory)
         rag_app["chain"] = chain
         rag_app["memory"] = memory
         rag_app["retriever"] = retriever
-        print(f"Ready! {total_chunks} chunks loaded from OpenSearch.")
+        print(f"Ready! {doc_count} chunks in OpenSearch.")
     except Exception as e:
         print(f"Warning: {e}. Waiting for worker to index documents.")
 
