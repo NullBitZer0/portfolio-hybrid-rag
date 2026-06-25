@@ -39,6 +39,7 @@ def check_rate_limit(client_ip: str) -> bool:
 
 class QueryRequest(BaseModel):
     question: str
+    source_filter: str = None
 
 
 class QueryResponse(BaseModel):
@@ -77,7 +78,7 @@ async def query_rag(req: QueryRequest, request: Request):
 
     if not rag_app["chain"]:
         raise HTTPException(503, "RAG system not initialized. Wait for worker to index documents.")
-    result = rag_app["chain"](req.question)
+    result = rag_app["chain"](req.question, source_filter=req.source_filter)
     return QueryResponse(
         answer=result["answer"],
         confidence=result.get("confidence", 0.0),

@@ -10,6 +10,7 @@ RERANK_TOP_K = 3
 class OpenSearchRetriever:
     """Retriever that wraps OpenSearch hybrid search and returns LangChain Documents."""
     k: int = RETRIEVAL_K
+    source_filter: str = None
 
     def invoke(self, query: str) -> list[Document]:
         from src.opensearch_client import get_opensearch_client, hybrid_search
@@ -25,7 +26,7 @@ class OpenSearchRetriever:
             search_query = query
 
         query_vector = embed_query(search_query)
-        results = hybrid_search(client, search_query, query_vector, k=self.k)
+        results = hybrid_search(client, search_query, query_vector, k=self.k, source_filter=self.source_filter)
 
         return [
             Document(
@@ -63,8 +64,8 @@ def cohere_rerank(query: str, docs: list[Document], top_n: int = RERANK_TOP_K) -
 class HybridRetriever:
     """Hybrid retriever: OpenSearch BM25 + k-NN, reranked with Cohere API."""
 
-    def __init__(self, rerank: bool = True, k: int = 10):
-        self.base_retriever = OpenSearchRetriever(k=k)
+    def __init__(self, rerank: bool = True, k: int = 10, source_filter: str = None):
+        self.base_retriever = OpenSearchRetriever(k=k, source_filter=source_filter)
         self.rerank = rerank
         self.k = k
 
@@ -75,8 +76,8 @@ class HybridRetriever:
         return docs
 
 
-def get_reranked_retriever(rerank: bool = True) -> HybridRetriever:
+def get_reranked_retriever(rerank: bool = True, source_filter: str = None) -> HybridRetriever:
     """Build the hybrid retriever with Cohere reranking."""
-    retriever = HybridRetriever(rerank=rerank, k=10)
+    retriever = HybridRetriever(rerank=rerank, k=10, source_filter=source_filter)
     print("Hybrid retriever built: OpenSearch BM25 + k-NN + Cohere rerank")
     return retriever

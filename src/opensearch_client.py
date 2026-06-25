@@ -90,9 +90,23 @@ def bulk_index(client: OpenSearch, documents: list[dict]):
         print(f"Indexed {len(documents)} documents into OpenSearch")
 
 
-def hybrid_search(client: OpenSearch, query_text: str, query_vector: list, k: int = 10) -> list[dict]:
+def hybrid_search(client: OpenSearch, query_text: str, query_vector: list, k: int = 10, source_filter: str = None) -> list[dict]:
     """Hybrid search: BM25 + k-NN with Reciprocal Rank Fusion."""
     from src.config import BM25_WEIGHT, VECTOR_WEIGHT
+
+    filters = [
+        {
+            "knn": {
+                "vector": {
+                    "vector": query_vector,
+                    "k": k,
+                }
+            }
+        }
+    ]
+
+    if source_filter:
+        filters.append({"term": {"source": source_filter}})
 
     search_body = {
         "size": k,
@@ -108,16 +122,7 @@ def hybrid_search(client: OpenSearch, query_text: str, query_vector: list, k: in
                         }
                     }
                 ],
-                "filter": [
-                    {
-                        "knn": {
-                            "vector": {
-                                "vector": query_vector,
-                                "k": k,
-                            }
-                        }
-                    }
-                ],
+                "filter": filters,
             }
         },
     }

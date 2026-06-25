@@ -19,8 +19,13 @@ class ConversationMemory:
 
 
 def build_conversational_rag_chain(retriever, memory: ConversationMemory):
-    def invoke(question: str) -> dict:
-        result = rag_pipeline(question, retriever)
+    def invoke(question: str, source_filter: str = None) -> dict:
+        if source_filter:
+            from src.retrieval import get_reranked_retriever
+            filtered_retriever = get_reranked_retriever(source_filter=source_filter)
+            result = rag_pipeline(question, filtered_retriever)
+        else:
+            result = rag_pipeline(question, retriever)
 
         memory.add_user_message(question)
         memory.add_ai_message(result.get("answer", ""))
