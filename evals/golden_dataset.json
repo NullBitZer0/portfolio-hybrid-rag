@@ -1,7 +1,7 @@
 [
   {
     "question": "What ML projects has Adeesha worked on?",
-    "ground_truth": "Adeesha has worked on several ML projects including a Real-Time Fraud Detection System (CatBoost, Feast, Kafka), a Hybrid RAG Portfolio Assistant (LangGraph, OpenSearch, Gemini, Cohere), and a Movie Recommendation System (KNN, SVD, SBERT).",
+    "ground_truth": "Adeesha has worked on several ML projects including a Real-Time Fraud Detection System (CatBoost, Feast, Kafka), an Agentic RAG Portfolio Assistant (LangGraph, OpenSearch, Gemini, Cohere), and a Movie Recommendation System (KNN, SVD, SBERT).",
     "category": "projects"
   },
   {
@@ -20,8 +20,8 @@
     "category": "skills"
   },
   {
-    "question": "What is the architecture of the Hybrid RAG system?",
-    "ground_truth": "The Hybrid RAG system uses LangGraph StateGraph with 5 agent tools, OpenSearch hybrid search (BM25 + k-NN), Cohere reranking, parent-child chunking (2000/500), Docling extraction, MinIO storage, and Upstash Redis caching.",
+    "question": "What is the architecture of the Agentic RAG system?",
+    "ground_truth": "The Agentic RAG system uses LangGraph StateGraph with 5 agent tools, OpenSearch hybrid search (BM25 + k-NN), Cohere reranking, parent-child chunking (2000/500), Docling extraction, MinIO storage, and Upstash Redis caching.",
     "category": "projects"
   },
   {

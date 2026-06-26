@@ -1,4 +1,4 @@
-# Hybrid RAG System - Architecture
+# Agentic RAG System - Architecture
 
 ## Overview
 
@@ -173,7 +173,7 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 - `resume/all_projects.pdf` (12 chunks)
 - `soft_skills.pdf` (42 chunks)
 - `realtime_fraud_detection.pdf` (40 chunks)
-- `hybrid_rag_project.pdf` (35 chunks)
+- `agentic_rag_project.pdf` (35 chunks)
 
 ### 5. Hybrid Retrieval (`retrieval.py`)
 

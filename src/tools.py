@@ -90,7 +90,7 @@ def search_projects(query: str) -> str:
     query_vector = embed_query(expanded)
 
     all_results = []
-    for source_name in ["realtime_fraud_detection.pdf", "hybrid_rag_project.pdf", "resume/all_projects.pdf"]:
+    for source_name in ["realtime_fraud_detection.pdf", "agentic_rag_project.pdf", "resume/all_projects.pdf"]:
         results = hybrid_search(client, expanded, query_vector, k=5, source_filter=source_name)
         all_results.extend(results)
 

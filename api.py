@@ -21,7 +21,7 @@ logger = logging.getLogger("rag-api")
 
 # ── App ────────────────────────────────────────────────────
 
-app = FastAPI(title="Hybrid RAG API", version="3.0")
+app = FastAPI(title="Agentic RAG API", version="3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -286,7 +286,7 @@ async def clear_cache(_key: str = Depends(verify_api_key)):
 @app.get("/")
 async def health_check():
     """Health check with dependency status (no auth required)."""
-    status = {"status": "ok", "service": "Hybrid RAG API", "version": "3.0"}
+    status = {"status": "ok", "service": "Agentic RAG API", "version": "3.0"}
     deps = {}
 
     try:

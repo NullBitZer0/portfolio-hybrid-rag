@@ -1,4 +1,4 @@
-"""RAGAS evaluation script for the Hybrid RAG system."""
+"""RAGAS evaluation script for the Agentic RAG system."""
 import json
 import sys
 import os

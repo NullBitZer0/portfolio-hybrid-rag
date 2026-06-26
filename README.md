@@ -1,4 +1,4 @@
-# Hybrid RAG Portfolio Assistant
+# Agentic RAG Portfolio Assistant
 
 A production-grade Retrieval-Augmented Generation system that answers questions about my projects, skills, resume, and experience. Deployed and live at [adeeshaperera.me](https://adeeshaperera.me).
 

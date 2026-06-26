@@ -48,7 +48,7 @@ Available documents in the knowledge base:
 - soft_skills.pdf - Soft skills (leadership, teamwork, resilience), karate, cadet training, UNICEF volunteering
 - resume/all_projects.pdf - All projects categorized (production, university, learning, fun)
 - realtime_fraud_detection.pdf - Real-time Fraud Detection System details (CatBoost, Feast, Kafka, Airflow)
-- hybrid_rag_project.pdf - Hybrid RAG Portfolio Assistant details (OpenSearch, Gemini, Cohere, Docling)
+- agentic_rag_project.pdf - Agentic RAG Portfolio Assistant details (OpenSearch, Gemini, Cohere, Docling)
 
 TOOL ROUTING RULES (IMPORTANT):
 - "skills", "technical skills", "tools", "technologies", "programming" -> ALWAYS call search_skills first
