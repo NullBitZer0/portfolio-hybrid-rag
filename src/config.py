@@ -38,6 +38,10 @@ MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
 # Docling
 DOCLING_URL = os.getenv("DOCLING_URL", "http://docling:5001")
 
+# Upstash Redis
+UPSTASH_REDIS_REST_URL = os.getenv("UPSTASH_REDIS_REST_URL", "")
+UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN", "")
+
 # Folder categories
 FOLDERS = ["", "resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"]
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx", ".md"}
