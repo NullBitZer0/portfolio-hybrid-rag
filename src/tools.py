@@ -67,7 +67,7 @@ def search_projects(query: str) -> str:
 
     # Do separate searches for each project source and combine
     all_results = []
-    for source_name in ["realtime_fraud_detection.pdf", "hybrid_rag_project.pdf", "all_projects.pdf"]:
+    for source_name in ["realtime_fraud_detection.pdf", "hybrid_rag_project.pdf", "resume/all_projects.pdf"]:
         results = hybrid_search(client, search_query, query_vector, k=5, source_filter=source_name)
         all_results.extend(results)
 
@@ -109,7 +109,7 @@ def search_skills(query: str) -> str:
     query_vector = embed_query(search_query)
 
     all_results = []
-    for source_name in ["technical_skills.pdf", "soft_skills.pdf"]:
+    for source_name in ["resume/technical_skills.pdf", "soft_skills.pdf"]:
         results = hybrid_search(client, search_query, query_vector, k=5, source_filter=source_name)
         all_results.extend(results)
 

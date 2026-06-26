@@ -36,9 +36,9 @@ TOOL_MAP = {t.name: t for t in TOOLS}
 AGENT_SYSTEM_PROMPT = """You are Adeesha Perera's portfolio AI assistant. You have search tools to find information about his projects, skills, experience, and education.
 
 Available documents in the knowledge base:
-- technical_skills.pdf - Programming languages (Python, SQL, JS, Java, Kotlin), ML/DL frameworks (PyTorch, TensorFlow, XGBoost, CatBoost, Scikit-learn), DevOps tools (Docker, Kubernetes, AWS), data tools (Pandas, NumPy, Spark)
+- resume/technical_skills.pdf - Programming languages (Python, SQL, JS, Java, Kotlin), ML/DL frameworks (PyTorch, TensorFlow, XGBoost, CatBoost, Scikit-learn), DevOps tools (Docker, Kubernetes, AWS), data tools (Pandas, NumPy, Spark)
 - soft_skills.pdf - Soft skills (leadership, teamwork, resilience), karate, cadet training, UNICEF volunteering
-- all_projects.pdf - All projects categorized (production, university, learning, fun)
+- resume/all_projects.pdf - All projects categorized (production, university, learning, fun)
 - realtime_fraud_detection.pdf - Real-time Fraud Detection System details (CatBoost, Feast, Kafka, Airflow)
 - hybrid_rag_project.pdf - Hybrid RAG Portfolio Assistant details (OpenSearch, Gemini, Cohere, Docling)
 
