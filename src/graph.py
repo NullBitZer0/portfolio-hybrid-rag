@@ -66,8 +66,8 @@ RULES:
 
 def input_guard(state: RAGState) -> dict:
     """Validate input query for safety."""
-    with trace("input_guard", {"question": state["question"]}) as span:
-        result = guard_input(state["question"])
+    with trace("input_guard", {"question": state.get("question", "")}) as span:
+        result = guard_input(state.get("question", ""))
         span.update(output={"passed": result.passed, "reason": result.reason})
         return {
             "cleaned": result.cleaned if result.passed else "",
@@ -77,8 +77,8 @@ def input_guard(state: RAGState) -> dict:
 
 def classify_portfolio(state: RAGState) -> dict:
     """Classify if question is about Adeesha's portfolio."""
-    with trace("classify", {"query": state["cleaned"]}) as span:
-        classification = classify_question(state["cleaned"])
+    with trace("classify", {"query": state.get("cleaned", "")}) as span:
+        classification = classify_question(state.get("cleaned", ""))
         span.update(output=classification)
         if not classification["is_portfolio"]:
             return {"blocked": True, "flags": ["general_knowledge"]}
@@ -87,7 +87,8 @@ def classify_portfolio(state: RAGState) -> dict:
 
 def agent_step(state: RAGState) -> dict:
     """Agent decides which tools to call or generates final answer."""
-    with trace("agent_step", {"round": state["retrieval_round"], "question": state["cleaned"]}) as span:
+    retrieval_round = state.get("retrieval_round", 0)
+    with trace("agent_step", {"round": retrieval_round, "question": state.get("cleaned", "")}) as span:
         llm = get_llm(temperature=0.1, max_tokens=MAX_LLM_TOKENS)
         llm_with_tools = llm.bind_tools(TOOLS)
 
@@ -95,7 +96,7 @@ def agent_step(state: RAGState) -> dict:
         messages = [SystemMessage(content=AGENT_SYSTEM_PROMPT)]
 
         # Add conversation context
-        for msg in state["messages"]:
+        for msg in state.get("messages", []):
             if isinstance(msg, (HumanMessage, AIMessage)):
                 messages.append(msg)
 
@@ -105,7 +106,7 @@ def agent_step(state: RAGState) -> dict:
         if response.tool_calls:
             tools_used = [tc["name"] for tc in response.tool_calls]
 
-        print(f"Agent step (round {state['retrieval_round']}): tools={tools_used}")
+        print(f"Agent step (round {retrieval_round}): tools={tools_used}")
 
         span.update(output={
             "tool_calls": tools_used,
@@ -120,9 +121,11 @@ def agent_step(state: RAGState) -> dict:
 
 def analyze_results(state: RAGState) -> dict:
     """Analyze retrieved results and decide if more retrieval is needed."""
-    with trace("analyze", {"round": state["retrieval_round"]}) as span:
+    retrieval_round = state.get("retrieval_round", 0)
+    max_rounds = state.get("max_rounds", 2)
+    with trace("analyze", {"round": retrieval_round}) as span:
         # Check if we hit max rounds
-        if state["retrieval_round"] >= state["max_rounds"]:
+        if retrieval_round >= max_rounds:
             span.update(output={"decision": "enough", "reason": "max_rounds"})
             return {}
 
@@ -131,7 +134,7 @@ def analyze_results(state: RAGState) -> dict:
 
         # Collect all tool results from messages
         tool_results = []
-        for msg in state["messages"]:
+        for msg in state.get("messages", []):
             if hasattr(msg, "content") and isinstance(msg.content, str) and msg.type == "tool":
                 tool_results.append(msg.content[:500])
 
@@ -139,7 +142,7 @@ def analyze_results(state: RAGState) -> dict:
 
         prompt = f"""Based on these search results, do you have enough information to answer this question?
 
-Question: {state["cleaned"]}
+Question: {state.get('cleaned', '')}
 
 Search results summary:
 {context_summary[:2000]}
@@ -155,18 +158,18 @@ Reply with exactly one word: "enough" if you have sufficient information, or "ne
 
         span.update(output={"decision": "need_more" if needs_more else "enough"})
 
-        return {"retrieval_round": state["retrieval_round"] + 1}
+        return {"retrieval_round": retrieval_round + 1}
 
 
 def generate(state: RAGState) -> dict:
     """Generate final answer from accumulated context."""
-    with trace("generate", {"question": state["cleaned"]}) as span:
+    with trace("generate", {"question": state.get("cleaned", "")}) as span:
         # If blocked, return the blocked response
         if state.get("blocked"):
             if state.get("flags") and "general_knowledge" in state["flags"]:
                 answer = REFUSAL_RESPONSE
             else:
-                answer = guard_input(state["question"]).reason or "Query blocked."
+                answer = guard_input(state.get("question", "")).reason or "Query blocked."
             return {
                 "answer": answer,
                 "confidence": 0.0,
@@ -178,7 +181,7 @@ def generate(state: RAGState) -> dict:
         context_parts = []
         all_sources = set()
         all_pages = set()
-        for msg in state["messages"]:
+        for msg in state.get("messages", []):
             if hasattr(msg, "content") and isinstance(msg.content, str) and msg.type == "tool":
                 context_parts.append(msg.content)
                 # Extract sources from tool results
@@ -217,7 +220,7 @@ Question: {question}
 Answer:"""
         )
         chain = prompt | llm | (lambda x: x.content.strip())
-        answer = chain.invoke({"context": context, "question": state["cleaned"]})
+        answer = chain.invoke({"context": context, "question": state.get("cleaned", "")})
 
         span.update(output={"answer": answer[:200], "sources": list(all_sources)})
 

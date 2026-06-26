@@ -1,5 +1,4 @@
 from langchain_core.tools import tool
-from src.config import CHUNK_SIZE, CHUNK_OVERLAP
 from src.opensearch_client import get_opensearch_client, hybrid_search, get_doc_count
 from src.embeddings import embed_query
 from src.retrieval import cohere_rerank, RERANK_TOP_K
@@ -10,15 +9,8 @@ def _search(query: str, source_filter: str = None, k: int = 10) -> str:
     """Internal search helper with Cohere reranking."""
     client = get_opensearch_client()
 
-    # Optional HyDE for better embeddings
-    from src.config import USE_HYDE
-    search_query = query
-    if USE_HYDE and len(query.strip()) >= 10:
-        from src.hyde import generate_hypothetical_answer
-        search_query = generate_hypothetical_answer(query)
-
-    query_vector = embed_query(search_query)
-    results = hybrid_search(client, search_query, query_vector, k=k, source_filter=source_filter)
+    query_vector = embed_query(query)
+    results = hybrid_search(client, query, query_vector, k=k, source_filter=source_filter)
 
     if not results:
         return "No relevant documents found."
@@ -42,10 +34,6 @@ def _search(query: str, source_filter: str = None, k: int = 10) -> str:
     return "\n\n---\n\n".join(formatted)
 
 
-PROJECT_SOURCES = "realtime_fraud_detection.pdf|hybrid_rag_project.pdf|all_projects.pdf"
-SKILL_SOURCES = "technical_skills.pdf|soft_skills.pdf"
-
-
 @tool
 def search_all(query: str) -> str:
     """Search all documents for any information about Adeesha Perera's portfolio, projects, skills, experience, or education."""
@@ -56,19 +44,13 @@ def search_all(query: str) -> str:
 def search_projects(query: str) -> str:
     """Search specifically for project information. Use this when the user asks about projects Adeesha has built or worked on."""
     client = get_opensearch_client()
-    # Search with source filter for project-related documents
-    from src.config import USE_HYDE
-    search_query = query
-    if USE_HYDE and len(query.strip()) >= 10:
-        from src.hyde import generate_hypothetical_answer
-        search_query = generate_hypothetical_answer(query)
 
-    query_vector = embed_query(search_query)
+    query_vector = embed_query(query)
 
     # Do separate searches for each project source and combine
     all_results = []
     for source_name in ["realtime_fraud_detection.pdf", "hybrid_rag_project.pdf", "resume/all_projects.pdf"]:
-        results = hybrid_search(client, search_query, query_vector, k=5, source_filter=source_name)
+        results = hybrid_search(client, query, query_vector, k=5, source_filter=source_name)
         all_results.extend(results)
 
     if not all_results:
@@ -100,17 +82,12 @@ def search_projects(query: str) -> str:
 def search_skills(query: str) -> str:
     """Search for ALL skills information about Adeesha. Use this when the user asks about technical skills, tools, technologies, programming languages, ML frameworks, soft skills, or ANY skills-related question. Searches both technical_skills.pdf (Python, PyTorch, TensorFlow, Docker, AWS, etc.) and soft_skills.pdf (leadership, teamwork, etc.)."""
     client = get_opensearch_client()
-    from src.config import USE_HYDE
-    search_query = query
-    if USE_HYDE and len(query.strip()) >= 10:
-        from src.hyde import generate_hypothetical_answer
-        search_query = generate_hypothetical_answer(query)
 
-    query_vector = embed_query(search_query)
+    query_vector = embed_query(query)
 
     all_results = []
     for source_name in ["resume/technical_skills.pdf", "soft_skills.pdf"]:
-        results = hybrid_search(client, search_query, query_vector, k=5, source_filter=source_name)
+        results = hybrid_search(client, query, query_vector, k=5, source_filter=source_name)
         all_results.extend(results)
 
     if not all_results:
