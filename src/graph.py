@@ -3,12 +3,16 @@ from operator import add
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode
 
-from src.config import get_llm, MAX_LLM_TOKENS
+from src.config import get_llm, get_fallback_llm, invoke_llm_with_fallback, MAX_LLM_TOKENS
 from src.guardrails import guard_input, guard_toxicity, classify_question, REFUSAL_RESPONSE
 from src.langfuse_integration import trace
 from src.tools import search_all, search_projects, search_skills, search_source, list_documents
+
+
+# ── Prompt Versioning ───────────────────────────────────────
+
+PROMPT_VERSION = "v2.0"
 
 
 # ── State ──────────────────────────────────────────────────
@@ -33,7 +37,7 @@ class RAGState(TypedDict):
 TOOLS = [search_all, search_projects, search_skills, search_source, list_documents]
 TOOL_MAP = {t.name: t for t in TOOLS}
 
-AGENT_SYSTEM_PROMPT = """You are Adeesha Perera's portfolio AI assistant. You have search tools to find information about his projects, skills, experience, and education.
+AGENT_SYSTEM_PROMPT = f"""[Prompt: {PROMPT_VERSION}] You are Adeesha Perera's portfolio AI assistant. You have search tools to find information about his projects, skills, experience, and education.
 
 Available documents in the knowledge base:
 - resume/technical_skills.pdf - Programming languages (Python, SQL, JS, Java, Kotlin), ML/DL frameworks (PyTorch, TensorFlow, XGBoost, CatBoost, Scikit-learn), DevOps tools (Docker, Kubernetes, AWS), data tools (Pandas, NumPy, Spark)
@@ -61,12 +65,32 @@ RULES:
 - Do not use special characters like *, #, -, or > in your response.
 """
 
+GENERATE_PROMPT = f"""[Prompt: {PROMPT_VERSION}] You are Adeesha's portfolio assistant. Answer using ONLY the context below.
+
+RULES:
+- When asked about projects, mention what you find in the context.
+- Extract specific facts, names, technologies, metrics from the context
+- If asked about skills, describe what you find in the context (technical skills, soft skills, or both)
+- Never describe the RAG system itself - answer about Adeesha's work
+- If the context truly has zero relevant information, say "I don't have that information"
+- Be specific and factual - no vague meta-descriptions
+- NEVER use markdown formatting. No bullet points, no bold, no headers. Write plain text only.
+- Write in short, natural sentences. 2-3 sentences max per answer.
+- Do not use special characters like *, #, -, or > in your response.
+
+Context:
+{{context}}
+
+Question: {{question}}
+
+Answer:"""
+
 
 # ── Graph Nodes ────────────────────────────────────────────
 
 def input_guard(state: RAGState) -> dict:
     """Validate input query for safety."""
-    with trace("input_guard", {"question": state.get("question", "")}) as span:
+    with trace("input_guard", {"question": state.get("question", ""), "prompt_version": PROMPT_VERSION}) as span:
         result = guard_input(state.get("question", ""))
         span.update(output={"passed": result.passed, "reason": result.reason})
         return {
@@ -88,7 +112,7 @@ def classify_portfolio(state: RAGState) -> dict:
 def agent_step(state: RAGState) -> dict:
     """Agent decides which tools to call or generates final answer."""
     retrieval_round = state.get("retrieval_round", 0)
-    with trace("agent_step", {"round": retrieval_round, "question": state.get("cleaned", "")}) as span:
+    with trace("agent_step", {"round": retrieval_round, "question": state.get("cleaned", ""), "prompt_version": PROMPT_VERSION}) as span:
         llm = get_llm(temperature=0.1, max_tokens=MAX_LLM_TOKENS)
         llm_with_tools = llm.bind_tools(TOOLS)
 
@@ -130,8 +154,6 @@ def analyze_results(state: RAGState) -> dict:
             return {}
 
         # Ask LLM if we have enough info
-        llm = get_llm(temperature=0.0, max_tokens=100)
-
         # Collect all tool results from messages
         tool_results = []
         for msg in state.get("messages", []):
@@ -150,7 +172,7 @@ Search results summary:
 Reply with exactly one word: "enough" if you have sufficient information, or "need_more" if you need to search for more details."""
 
         try:
-            response = llm.invoke(prompt)
+            response = invoke_llm_with_fallback({}, prompt, temperature=0.0, max_tokens=100)
             decision = response.content.strip().lower()
             needs_more = "need_more" in decision
         except Exception:
@@ -163,7 +185,7 @@ Reply with exactly one word: "enough" if you have sufficient information, or "ne
 
 def generate(state: RAGState) -> dict:
     """Generate final answer from accumulated context."""
-    with trace("generate", {"question": state.get("cleaned", "")}) as span:
+    with trace("generate", {"question": state.get("cleaned", ""), "prompt_version": PROMPT_VERSION}) as span:
         # If blocked, return the blocked response
         if state.get("blocked"):
             if state.get("flags") and "general_knowledge" in state["flags"]:
@@ -195,32 +217,28 @@ def generate(state: RAGState) -> dict:
 
         context = "\n\n---\n\n".join(context_parts) if context_parts else "No relevant documents found."
 
-        # Generate answer
-        llm = get_llm(temperature=0.1, max_tokens=MAX_LLM_TOKENS)
+        # Generate answer with fallback
         from langchain_core.prompts import ChatPromptTemplate
-        prompt = ChatPromptTemplate.from_template(
-            """You are Adeesha's portfolio assistant. Answer using ONLY the context below.
+        prompt = ChatPromptTemplate.from_template(GENERATE_PROMPT)
+        question = state.get("cleaned", "")
 
-RULES:
-- When asked about projects, mention what you find in the context.
-- Extract specific facts, names, technologies, metrics from the context
-- If asked about skills, describe what you find in the context (technical skills, soft skills, or both)
-- Never describe the RAG system itself - answer about Adeesha's work
-- If the context truly has zero relevant information, say "I don't have that information"
-- Be specific and factual - no vague meta-descriptions
-- NEVER use markdown formatting. No bullet points, no bold, no headers. Write plain text only.
-- Write in short, natural sentences. 2-3 sentences max per answer.
-- Do not use special characters like *, #, -, or > in your response.
-
-Context:
-{context}
-
-Question: {question}
-
-Answer:"""
-        )
-        chain = prompt | llm | (lambda x: x.content.strip())
-        answer = chain.invoke({"context": context, "question": state.get("cleaned", "")})
+        try:
+            llm = get_llm(temperature=0.1, max_tokens=MAX_LLM_TOKENS)
+            chain = prompt | llm | (lambda x: x.content.strip())
+            answer = chain.invoke({"context": context, "question": question})
+        except Exception as e:
+            err_str = str(e).lower()
+            if any(kw in err_str for kw in ["rate_limit", "429", "503", "connection", "timeout", "overloaded"]):
+                print(f"Groq unavailable for generate ({e}), falling back to Gemini")
+                try:
+                    fallback = get_fallback_llm(temperature=0.1, max_tokens=MAX_LLM_TOKENS)
+                    chain = prompt | fallback | (lambda x: x.content.strip())
+                    answer = chain.invoke({"context": context, "question": question})
+                except Exception as e2:
+                    print(f"Gemini fallback also failed: {e2}")
+                    answer = "I'm having trouble generating a response right now. Please try again."
+            else:
+                raise
 
         span.update(output={"answer": answer[:200], "sources": list(all_sources)})
 

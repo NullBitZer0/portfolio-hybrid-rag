@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from langchain_core.documents import Document
+from tenacity import retry, stop_after_attempt, wait_exponential
 from src.config import RETRIEVAL_K, COHERE_API_KEY
 
 
@@ -29,19 +30,22 @@ class OpenSearchRetriever:
         ]
 
 
-def cohere_rerank(query: str, docs: list[Document], top_n: int = RERANK_TOP_K) -> list[Document]:
-    """Rerank documents using Cohere rerank-v3 API."""
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+def _cohere_rerank_api(query: str, documents: list[str], top_n: int):
     import cohere
-
     co = cohere.Client(COHERE_API_KEY)
-
-    results = co.rerank(
+    return co.rerank(
         model="rerank-v3.5",
         query=query,
-        documents=[d.page_content for d in docs],
+        documents=documents,
         top_n=top_n,
         return_documents=True,
     )
+
+
+def cohere_rerank(query: str, docs: list[Document], top_n: int = RERANK_TOP_K) -> list[Document]:
+    """Rerank documents using Cohere rerank-v3 API."""
+    results = _cohere_rerank_api(query, [d.page_content for d in docs], top_n)
 
     reranked = []
     for result in results.results:

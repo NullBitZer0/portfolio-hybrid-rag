@@ -71,6 +71,18 @@ class ConversationMemory:
     def get_history(self) -> list[HumanMessage | AIMessage]:
         return self._load_history()
 
+    def get_context_messages(self) -> list[HumanMessage | AIMessage]:
+        """Get conversation history formatted for agent context.
+
+        Returns only the most recent message pairs (up to max_window).
+        Each pair is a HumanMessage followed by an AIMessage.
+        """
+        history = self._load_history()
+        # Return only the most recent pairs, excluding the current question
+        if len(history) > self.max_window * 2:
+            history = history[-(self.max_window * 2):]
+        return history
+
     def clear(self):
         if self._redis:
             try:
@@ -82,10 +94,14 @@ class ConversationMemory:
 
 def build_conversational_rag_chain(graph, memory: ConversationMemory):
     def invoke(question: str, source_filter: str = None) -> dict:
+        # Inject conversation history for multi-turn context
+        history = memory.get_context_messages()
+        initial_messages = history + [HumanMessage(content=question)]
+
         initial_state = {
             "question": question,
             "cleaned": "",
-            "messages": [HumanMessage(content=question)],
+            "messages": initial_messages,
             "answer": "",
             "tools_used": [],
             "retrieval_round": 0,

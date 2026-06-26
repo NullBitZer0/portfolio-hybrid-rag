@@ -29,6 +29,7 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
                     │      AGENT (LangGraph)        │
                     │  LLM decides which tools to   │
                     │  call based on query intent    │
+                    │  max 2 retrieval rounds       │
                     └──────────────┬───────────────┘
                                    |
                     ┌──────────────┼───────────────┐
@@ -147,7 +148,7 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 | Agent LLM | Groq openai/gpt-oss-120b |
 | Tools | 5 tools: search_all, search_projects, search_skills, search_source, list_documents |
 | Multi-step | Max 2 retrieval rounds (retrieve -> analyze -> retrieve again if needed) |
-| Error Handling | ToolNode with handle_tool_errors for graceful degradation |
+| Tool Executor | Custom tool_executor with print logging |
 
 **Agent Flow:**
 1. LLM receives system prompt with available tools and document list
@@ -161,11 +162,18 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 
 | Tool | What it searches | When to use |
 |------|-----------------|-------------|
-| `search_all` | All documents | Default for most queries |
+| `search_all` | All documents (no source filter) | Default for most queries |
 | `search_projects` | Project PDFs (fraud, RAG, all_projects) | Project-related queries |
 | `search_skills` | Skill PDFs (technical, soft) | Skill-related queries |
 | `search_source` | Specific document file | When agent needs details from one doc |
 | `list_documents` | Index metadata | When agent needs to know what's available |
+
+**Source names in OpenSearch** (include folder prefix for resume/ files):
+- `resume/technical_skills.pdf` (14 chunks)
+- `resume/all_projects.pdf` (12 chunks)
+- `soft_skills.pdf` (42 chunks)
+- `realtime_fraud_detection.pdf` (40 chunks)
+- `hybrid_rag_project.pdf` (35 chunks)
 
 ### 5. Hybrid Retrieval (`retrieval.py`)
 
@@ -176,7 +184,6 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 | Fusion | OpenSearch native hybrid query (bool filter) |
 | Re-ranking | Cohere rerank-v3.5 (Top 10 -> Top 3) |
 | Embeddings | Gemini gemini-embedding-2 (768-dim) |
-| HyDE | Generates hypothetical answer for better embedding (skipped for short queries) |
 | Source Filter | Filter by specific document filename |
 
 ### 6. Guardrails (`guardrails.py`)
@@ -215,7 +222,7 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 |---------|-------------|
 | Provider | MinIO (S3-compatible) |
 | Bucket | `rag-document` |
-| Structure | Flat (root-level files) |
+| Structure | Flat (root-level files, resume/ files have prefix in source name) |
 | Webhook | Auto-index on upload/delete |
 
 ### 10. Observability (`langfuse_integration.py`)

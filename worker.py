@@ -115,7 +115,6 @@ def reindex_all():
     client = get_minio_client()
     objects = client.list_objects(MINIO_BUCKET, recursive=True)
 
-    # Clear existing index
     from src.opensearch_client import delete_index
     os_client = get_opensearch_client()
     delete_index(os_client)
@@ -151,6 +150,11 @@ def process_file(filename: str):
                 chunks = chunk_text(text)
                 for chunk in chunks:
                     chunk.metadata["source"] = filename
+
+                # Deduplicate: delete existing chunks for this file before re-indexing
+                client = get_opensearch_client()
+                delete_by_source(client, filename)
+
                 index_chunks_to_opensearch(chunks, filename)
                 print(f"Processed {filename}: {len(chunks)} chunks")
         finally:
@@ -179,6 +183,10 @@ class WebhookEvent(BaseModel):
     Records: list = []
 
 
+class DeleteRequest(BaseModel):
+    filename: str
+
+
 @app.post("/webhook/minio")
 async def minio_webhook(event: WebhookEvent):
     try:
@@ -199,6 +207,16 @@ async def minio_webhook(event: WebhookEvent):
             return {"status": "deleted", "filename": filename}
         else:
             return {"status": "ignored", "event": event.EventName}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/delete")
+async def delete_index(req: DeleteRequest):
+    """Delete OpenSearch chunks for a specific file."""
+    try:
+        delete_file_index(req.filename)
+        return {"status": "deleted", "filename": req.filename}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

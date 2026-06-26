@@ -8,7 +8,7 @@ from src.config import FOLDERS, ALLOWED_EXTENSIONS
 from src.pipeline import build_conversational_rag_chain, ConversationMemory
 from src.storage import storage
 
-app = FastAPI(title="Hybrid RAG API", version="1.0")
+app = FastAPI(title="Hybrid RAG API", version="2.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,7 +17,7 @@ app.add_middleware(
 )
 
 # Global state
-rag_app = {"chain": None, "memory": None, "retriever": None}
+rag_app = {"chain": None, "memory": None, "retriever": None, "cache": None}
 
 # Rate limiting
 RATE_LIMIT = int(os.getenv("RATE_LIMIT", "5"))
@@ -60,11 +60,13 @@ async def startup():
         ensure_index(client)
         doc_count = get_doc_count(client)
         from src.graph import rag_graph
+        from src.cache import llm_cache
         memory = ConversationMemory()
         chain = build_conversational_rag_chain(rag_graph, memory)
         rag_app["chain"] = chain
         rag_app["memory"] = memory
         rag_app["retriever"] = rag_graph
+        rag_app["cache"] = llm_cache
         print(f"Ready! {doc_count} chunks in OpenSearch. Agentic graph compiled.")
     except Exception as e:
         print(f"Warning: {e}. Waiting for worker to index documents.")
@@ -79,15 +81,31 @@ async def query_rag(req: QueryRequest, request: Request):
 
     if not rag_app["chain"]:
         raise HTTPException(503, "RAG system not initialized. Wait for worker to index documents.")
+
+    # Check LLM cache
+    cache = rag_app.get("cache")
+    if cache:
+        cached = cache.get(req.question)
+        if cached:
+            print(f"Cache hit: {req.question[:50]}...")
+            return QueryResponse(**cached)
+
     result = rag_app["chain"](req.question, source_filter=req.source_filter)
-    return QueryResponse(
-        answer=result["answer"],
-        confidence=result.get("confidence", 0.0),
-        mode=result.get("mode", "unknown"),
-        sources=result.get("sources", []),
-        pages=result.get("pages", []),
-        flags=result.get("flags", []),
-    )
+
+    response_data = {
+        "answer": result["answer"],
+        "confidence": result.get("confidence", 0.0),
+        "mode": result.get("mode", "unknown"),
+        "sources": result.get("sources", []),
+        "pages": result.get("pages", []),
+        "flags": result.get("flags", []),
+    }
+
+    # Store in cache
+    if cache:
+        cache.set(req.question, response_data)
+
+    return QueryResponse(**response_data)
 
 
 @app.on_event("shutdown")
@@ -166,7 +184,7 @@ async def list_files(folder: str = None):
 
 @app.delete("/files/{folder}/{filename}")
 async def delete_file(folder: str, filename: str):
-    """Delete a file from MinIO. Worker will auto-remove index."""
+    """Delete a file from MinIO and remove its OpenSearch index."""
     allowed_folders = set(FOLDERS) - {""}
     if folder not in allowed_folders:
         raise HTTPException(400, f"Folder {folder} not allowed")
@@ -177,8 +195,22 @@ async def delete_file(folder: str, filename: str):
         raise HTTPException(404, f"File {filename} not found in {folder}")
 
     try:
+        # Delete from MinIO
         storage.delete_file(object_name)
-        return {"filename": filename, "folder": folder, "status": "deleted", "message": "Worker will auto-remove index"}
+
+        # Delete from OpenSearch via worker
+        import httpx
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    "http://worker:9000/delete",
+                    json={"filename": object_name},
+                    timeout=10,
+                )
+        except Exception as e:
+            print(f"Warning: could not delete index via worker: {e}")
+
+        return {"filename": filename, "folder": folder, "status": "deleted"}
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -203,6 +235,50 @@ async def clear_memory():
     return {"status": "memory cleared"}
 
 
+@app.post("/clear-cache")
+async def clear_cache():
+    """Clear LLM response cache."""
+    if rag_app["cache"]:
+        rag_app["cache"].clear()
+    return {"status": "cache cleared"}
+
+
 @app.get("/")
 async def health_check():
-    return {"status": "ok", "service": "Hybrid RAG API"}
+    """Health check with dependency status."""
+    status = {"status": "ok", "service": "Hybrid RAG API", "version": "2.0"}
+    deps = {}
+
+    # OpenSearch
+    try:
+        from src.opensearch_client import get_opensearch_client, get_doc_count
+        client = get_opensearch_client()
+        deps["opensearch"] = {"status": "ok", "chunks": get_doc_count(client)}
+    except Exception as e:
+        deps["opensearch"] = {"status": "error", "error": str(e)}
+        status["status"] = "degraded"
+
+    # MinIO
+    try:
+        from src.storage import storage
+        files = storage.list_files()
+        deps["minio"] = {"status": "ok", "files": len(files)}
+    except Exception as e:
+        deps["minio"] = {"status": "error", "error": str(e)}
+        status["status"] = "degraded"
+
+    # Redis
+    try:
+        from src.config import UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
+        if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN:
+            from upstash_redis import Redis
+            r = Redis(url=UPSTASH_REDIS_REST_URL, token=UPSTASH_REDIS_REST_TOKEN)
+            r.ping()
+            deps["redis"] = {"status": "ok"}
+        else:
+            deps["redis"] = {"status": "not_configured"}
+    except Exception as e:
+        deps["redis"] = {"status": "error", "error": str(e)}
+
+    status["dependencies"] = deps
+    return status
