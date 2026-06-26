@@ -4,7 +4,7 @@ from operator import add
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, END
 
-from src.config import get_llm, get_fallback_llm, invoke_llm_with_fallback, MAX_LLM_TOKENS
+from src.config import get_llm, invoke_llm_with_fallback, MAX_LLM_TOKENS
 from src.guardrails import guard_input, guard_toxicity, classify_question, REFUSAL_RESPONSE
 from src.langfuse_integration import trace
 from src.tools import search_all, search_projects, search_skills, search_source, list_documents
@@ -20,6 +20,7 @@ PROMPT_VERSION = "v2.0"
 class RAGState(TypedDict):
     question: str
     cleaned: str
+    source_filter: str
     messages: Annotated[list[BaseMessage], add]
     answer: str
     tools_used: list[str]
@@ -112,12 +113,17 @@ def classify_portfolio(state: RAGState) -> dict:
 def agent_step(state: RAGState) -> dict:
     """Agent decides which tools to call or generates final answer."""
     retrieval_round = state.get("retrieval_round", 0)
+    source_filter = state.get("source_filter", "")
     with trace("agent_step", {"round": retrieval_round, "question": state.get("cleaned", ""), "prompt_version": PROMPT_VERSION}) as span:
         llm = get_llm(temperature=0.1, max_tokens=MAX_LLM_TOKENS)
         llm_with_tools = llm.bind_tools(TOOLS)
 
         # Build messages: system + user query + previous tool results
-        messages = [SystemMessage(content=AGENT_SYSTEM_PROMPT)]
+        system_prompt = AGENT_SYSTEM_PROMPT
+        if source_filter:
+            system_prompt += f"\n\nIMPORTANT: The user wants results from '{source_filter}' only. Use search_source with source='{source_filter}' for all searches."
+
+        messages = [SystemMessage(content=system_prompt)]
 
         # Add conversation context
         for msg in state.get("messages", []):
@@ -146,40 +152,8 @@ def agent_step(state: RAGState) -> dict:
 def analyze_results(state: RAGState) -> dict:
     """Analyze retrieved results and decide if more retrieval is needed."""
     retrieval_round = state.get("retrieval_round", 0)
-    max_rounds = state.get("max_rounds", 2)
     with trace("analyze", {"round": retrieval_round}) as span:
-        # Check if we hit max rounds
-        if retrieval_round >= max_rounds:
-            span.update(output={"decision": "enough", "reason": "max_rounds"})
-            return {}
-
-        # Ask LLM if we have enough info
-        # Collect all tool results from messages
-        tool_results = []
-        for msg in state.get("messages", []):
-            if hasattr(msg, "content") and isinstance(msg.content, str) and msg.type == "tool":
-                tool_results.append(msg.content[:500])
-
-        context_summary = "\n\n".join(tool_results) if tool_results else "No results yet"
-
-        prompt = f"""Based on these search results, do you have enough information to answer this question?
-
-Question: {state.get('cleaned', '')}
-
-Search results summary:
-{context_summary[:2000]}
-
-Reply with exactly one word: "enough" if you have sufficient information, or "need_more" if you need to search for more details."""
-
-        try:
-            response = invoke_llm_with_fallback({}, prompt, temperature=0.0, max_tokens=100)
-            decision = response.content.strip().lower()
-            needs_more = "need_more" in decision
-        except Exception:
-            needs_more = False
-
-        span.update(output={"decision": "need_more" if needs_more else "enough"})
-
+        span.update(output={"decision": "increment_round"})
         return {"retrieval_round": retrieval_round + 1}
 
 
@@ -221,24 +195,14 @@ def generate(state: RAGState) -> dict:
         from langchain_core.prompts import ChatPromptTemplate
         prompt = ChatPromptTemplate.from_template(GENERATE_PROMPT)
         question = state.get("cleaned", "")
+        formatted = prompt.format(context=context, question=question)
 
         try:
-            llm = get_llm(temperature=0.1, max_tokens=MAX_LLM_TOKENS)
-            chain = prompt | llm | (lambda x: x.content.strip())
-            answer = chain.invoke({"context": context, "question": question})
+            response = invoke_llm_with_fallback({}, formatted, temperature=0.1, max_tokens=MAX_LLM_TOKENS)
+            answer = response.content.strip()
         except Exception as e:
-            err_str = str(e).lower()
-            if any(kw in err_str for kw in ["rate_limit", "429", "503", "connection", "timeout", "overloaded"]):
-                print(f"Groq unavailable for generate ({e}), falling back to Gemini")
-                try:
-                    fallback = get_fallback_llm(temperature=0.1, max_tokens=MAX_LLM_TOKENS)
-                    chain = prompt | fallback | (lambda x: x.content.strip())
-                    answer = chain.invoke({"context": context, "question": question})
-                except Exception as e2:
-                    print(f"Gemini fallback also failed: {e2}")
-                    answer = "I'm having trouble generating a response right now. Please try again."
-            else:
-                raise
+            print(f"All LLM providers failed for generate: {e}")
+            answer = "I'm having trouble generating a response right now. Please try again."
 
         span.update(output={"answer": answer[:200], "sources": list(all_sources)})
 

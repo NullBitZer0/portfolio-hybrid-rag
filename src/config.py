@@ -21,7 +21,6 @@ CHUNK_SIZE = 500
 CHUNK_OVERLAP = 100
 PARENT_CHUNK_SIZE = 2000
 BM25_WEIGHT = 0.4
-VECTOR_WEIGHT = 0.6
 RETRIEVAL_K = 5
 MEMORY_WINDOW = 5
 
@@ -46,6 +45,10 @@ DOCLING_URL = os.getenv("DOCLING_URL", "http://docling:5001")
 # Upstash Redis
 UPSTASH_REDIS_REST_URL = os.getenv("UPSTASH_REDIS_REST_URL", "")
 UPSTASH_REDIS_REST_TOKEN = os.getenv("UPSTASH_REDIS_REST_TOKEN", "")
+
+# API Security
+API_KEY = os.getenv("API_KEY", "")
+MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "20"))
 
 # Folder categories
 FOLDERS = ["", "resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"]

@@ -1,14 +1,27 @@
 import os
 import time
+import logging
 from collections import defaultdict
-from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request, Depends, Security
+from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from src.config import FOLDERS, ALLOWED_EXTENSIONS
+from src.config import FOLDERS, ALLOWED_EXTENSIONS, API_KEY, MAX_UPLOAD_SIZE_MB
 from src.pipeline import build_conversational_rag_chain, ConversationMemory
 from src.storage import storage
 
-app = FastAPI(title="Hybrid RAG API", version="2.0")
+# ── Logging ────────────────────────────────────────────────
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("rag-api")
+
+# ── App ────────────────────────────────────────────────────
+
+app = FastAPI(title="Hybrid RAG API", version="3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,6 +37,18 @@ RATE_LIMIT = int(os.getenv("RATE_LIMIT", "5"))
 RATE_WINDOW = int(os.getenv("RATE_WINDOW", "60"))
 rate_limit_store = defaultdict(list)
 
+# ── Auth ───────────────────────────────────────────────────
+
+api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def verify_api_key(request: Request, api_key: str = Security(api_key_header)):
+    """Verify API key if configured. Skip if no API_KEY set."""
+    if not API_KEY:
+        return
+    if api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
 
 def check_rate_limit(client_ip: str) -> bool:
     now = time.time()
@@ -35,6 +60,8 @@ def check_rate_limit(client_ip: str) -> bool:
     rate_limit_store[client_ip].append(now)
     return True
 
+
+# ── Models ─────────────────────────────────────────────────
 
 class QueryRequest(BaseModel):
     question: str
@@ -50,10 +77,12 @@ class QueryResponse(BaseModel):
     flags: list[str] = []
 
 
+# ── Startup ────────────────────────────────────────────────
+
 @app.on_event("startup")
 async def startup():
     """Initialize RAG system on server start."""
-    print("Initializing Agentic RAG system...")
+    logger.info("Initializing Agentic RAG system...")
     try:
         from src.opensearch_client import get_opensearch_client, ensure_index, get_doc_count
         client = get_opensearch_client()
@@ -67,13 +96,25 @@ async def startup():
         rag_app["memory"] = memory
         rag_app["retriever"] = rag_graph
         rag_app["cache"] = llm_cache
-        print(f"Ready! {doc_count} chunks in OpenSearch. Agentic graph compiled.")
+        logger.info(f"Ready! {doc_count} chunks in OpenSearch. Graph compiled.")
     except Exception as e:
-        print(f"Warning: {e}. Waiting for worker to index documents.")
+        logger.warning(f"Startup warning: {e}. Waiting for worker to index documents.")
 
 
-@app.post("/query")
-async def query_rag(req: QueryRequest, request: Request):
+@app.on_event("shutdown")
+async def shutdown():
+    """Flush Langfuse traces on shutdown."""
+    from src.config import LANGFUSE_ENABLED
+    if LANGFUSE_ENABLED:
+        from langfuse import get_client
+        get_client().flush()
+        logger.info("Langfuse traces flushed.")
+
+
+# ── Endpoints ──────────────────────────────────────────────
+
+@app.post("/query", response_model=QueryResponse)
+async def query_rag(req: QueryRequest, request: Request, _key: str = Depends(verify_api_key)):
     """Ask a question to the RAG system."""
     client_ip = request.client.host
     if not check_rate_limit(client_ip):
@@ -87,7 +128,7 @@ async def query_rag(req: QueryRequest, request: Request):
     if cache:
         cached = cache.get(req.question)
         if cached:
-            print(f"Cache hit: {req.question[:50]}...")
+            logger.info(f"Cache hit: {req.question[:50]}...")
             return QueryResponse(**cached)
 
     result = rag_app["chain"](req.question, source_filter=req.source_filter)
@@ -108,29 +149,31 @@ async def query_rag(req: QueryRequest, request: Request):
     return QueryResponse(**response_data)
 
 
-@app.on_event("shutdown")
-async def shutdown():
-    """Flush Langfuse traces on shutdown."""
-    from src.config import LANGFUSE_ENABLED
-    if LANGFUSE_ENABLED:
-        from langfuse import get_client
-        get_client().flush()
-        print("Langfuse traces flushed.")
-
-
 @app.post("/upload")
-async def upload_file(file: UploadFile = File(...), folder: str = "resume"):
+async def upload_file(
+    file: UploadFile = File(...),
+    folder: str = "resume",
+    _key: str = Depends(verify_api_key),
+):
     """Upload a file to MinIO. Worker will auto-index."""
     allowed_folders = set(FOLDERS)
-    file_ext = os.path.splitext(file.filename)[1].lower()
+    if folder not in allowed_folders:
+        raise HTTPException(400, f"Folder '{folder}' not allowed. Use: {sorted(allowed_folders - {''})}")
 
+    file_ext = os.path.splitext(file.filename)[1].lower()
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(400, f"File type {file_ext} not allowed. Use: {ALLOWED_EXTENSIONS}")
 
+    # Check file size
+    content = await file.read()
+    max_bytes = MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    if len(content) > max_bytes:
+        raise HTTPException(400, f"File too large. Max {MAX_UPLOAD_SIZE_MB}MB.")
+
     try:
-        content = await file.read()
         object_name = f"{folder}/{file.filename}" if folder else file.filename
         storage.upload_bytes(content, object_name, content_type=file.content_type or "application/octet-stream")
+        logger.info(f"Uploaded {object_name} ({len(content)} bytes)")
         return {
             "filename": file.filename,
             "folder": folder,
@@ -139,26 +182,30 @@ async def upload_file(file: UploadFile = File(...), folder: str = "resume"):
             "message": "Worker will auto-index this file",
         }
     except Exception as e:
+        logger.error(f"Upload failed: {e}")
         raise HTTPException(500, f"Upload failed: {str(e)}")
 
 
 @app.post("/upload-url")
-async def upload_from_url(url: str, filename: str):
+async def upload_from_url(url: str, filename: str, _key: str = Depends(verify_api_key)):
     """Download from URL, store in MinIO. Worker will auto-index."""
     import httpx
 
     file_ext = os.path.splitext(filename)[1].lower()
-
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(400, f"File type {file_ext} not allowed. Use: {ALLOWED_EXTENSIONS}")
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(url)
+            response = await client.get(url, timeout=30)
             response.raise_for_status()
+
+        if len(response.content) > MAX_UPLOAD_SIZE_MB * 1024 * 1024:
+            raise HTTPException(400, f"File too large. Max {MAX_UPLOAD_SIZE_MB}MB.")
 
         object_name = f"uploads/{filename}"
         storage.upload_bytes(response.content, object_name, content_type="application/octet-stream")
+        logger.info(f"Uploaded from URL: {object_name}")
         return {
             "filename": filename,
             "status": "uploaded",
@@ -170,7 +217,7 @@ async def upload_from_url(url: str, filename: str):
 
 
 @app.get("/files")
-async def list_files(folder: str = None):
+async def list_files(folder: str = None, _key: str = Depends(verify_api_key)):
     """List all files in MinIO storage."""
     try:
         if folder:
@@ -183,40 +230,33 @@ async def list_files(folder: str = None):
 
 
 @app.delete("/files/{folder}/{filename}")
-async def delete_file(folder: str, filename: str):
+async def delete_file(folder: str, filename: str, _key: str = Depends(verify_api_key)):
     """Delete a file from MinIO and remove its OpenSearch index."""
     allowed_folders = set(FOLDERS) - {""}
     if folder not in allowed_folders:
         raise HTTPException(400, f"Folder {folder} not allowed")
 
     object_name = f"{folder}/{filename}"
-
     if not storage.file_exists(object_name):
         raise HTTPException(404, f"File {filename} not found in {folder}")
 
     try:
-        # Delete from MinIO
         storage.delete_file(object_name)
-
-        # Delete from OpenSearch via worker
         import httpx
         try:
             async with httpx.AsyncClient() as client:
-                await client.post(
-                    "http://worker:9000/delete",
-                    json={"filename": object_name},
-                    timeout=10,
-                )
+                await client.post("http://worker:9000/delete", json={"filename": object_name}, timeout=10)
         except Exception as e:
-            print(f"Warning: could not delete index via worker: {e}")
+            logger.warning(f"Could not delete index via worker: {e}")
 
+        logger.info(f"Deleted {object_name}")
         return {"filename": filename, "folder": folder, "status": "deleted"}
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
 @app.post("/reindex")
-async def reindex():
+async def reindex(_key: str = Depends(verify_api_key)):
     """Trigger full reindex on worker."""
     import httpx
     try:
@@ -228,7 +268,7 @@ async def reindex():
 
 
 @app.post("/clear-memory")
-async def clear_memory():
+async def clear_memory(_key: str = Depends(verify_api_key)):
     """Clear conversation history."""
     if rag_app["memory"]:
         rag_app["memory"].clear()
@@ -236,7 +276,7 @@ async def clear_memory():
 
 
 @app.post("/clear-cache")
-async def clear_cache():
+async def clear_cache(_key: str = Depends(verify_api_key)):
     """Clear LLM response cache."""
     if rag_app["cache"]:
         rag_app["cache"].clear()
@@ -245,11 +285,10 @@ async def clear_cache():
 
 @app.get("/")
 async def health_check():
-    """Health check with dependency status."""
-    status = {"status": "ok", "service": "Hybrid RAG API", "version": "2.0"}
+    """Health check with dependency status (no auth required)."""
+    status = {"status": "ok", "service": "Hybrid RAG API", "version": "3.0"}
     deps = {}
 
-    # OpenSearch
     try:
         from src.opensearch_client import get_opensearch_client, get_doc_count
         client = get_opensearch_client()
@@ -258,16 +297,13 @@ async def health_check():
         deps["opensearch"] = {"status": "error", "error": str(e)}
         status["status"] = "degraded"
 
-    # MinIO
     try:
-        from src.storage import storage
         files = storage.list_files()
         deps["minio"] = {"status": "ok", "files": len(files)}
     except Exception as e:
         deps["minio"] = {"status": "error", "error": str(e)}
         status["status"] = "degraded"
 
-    # Redis
     try:
         from src.config import UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
         if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN:

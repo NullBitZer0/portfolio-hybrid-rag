@@ -92,7 +92,7 @@ def bulk_index(client: OpenSearch, documents: list[dict]):
 
 def hybrid_search(client: OpenSearch, query_text: str, query_vector: list, k: int = 10, source_filter: str = None) -> list[dict]:
     """Hybrid search: BM25 + k-NN with Reciprocal Rank Fusion."""
-    from src.config import BM25_WEIGHT, VECTOR_WEIGHT
+    from src.config import BM25_WEIGHT
 
     filters = [
         {

@@ -1,7 +1,7 @@
 import hashlib
 import time
 from langchain_core.tools import tool
-from src.opensearch_client import get_opensearch_client, hybrid_search, get_doc_count
+from src.opensearch_client import get_opensearch_client, hybrid_search
 from src.embeddings import embed_query
 from src.retrieval import cohere_rerank, RERANK_TOP_K
 from src.query_expansion import expand_query
@@ -160,10 +160,11 @@ def search_source(query: str, source: str) -> str:
 @tool
 def list_documents() -> str:
     """List all available documents in the knowledge base with their chunk counts. Use this to understand what information is available before searching."""
+    from src.config import OPENSEARCH_INDEX
     client = get_opensearch_client()
     try:
         response = client.search(
-            index="rag-document",
+            index=OPENSEARCH_INDEX,
             body={
                 "size": 0,
                 "aggs": {

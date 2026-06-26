@@ -4,22 +4,17 @@ import sys
 def cli_mode():
     """Interactive CLI chat with memory."""
     print("=" * 60)
-    print("  Hybrid RAG - CLI Mode")
-    print("  OpenSearch BM25 + k-NN | Cross-Encoder | Groq LLM")
+    print("  Agentic RAG - CLI Mode")
+    print("  LangGraph Agent | OpenSearch | Groq LLM")
     print("=" * 60)
 
-    print("\n[1/3] Ingesting documents...")
-    from src.ingest import ingest
-    total_chunks = ingest()
+    print("\n[1/2] Loading agentic graph...")
+    from src.graph import rag_graph
 
-    print("[2/3] Building hybrid retriever + reranker...")
-    from src.retrieval import get_reranked_retriever
-    retriever = get_reranked_retriever()
-
-    print("[3/3] Starting chat (type 'quit' to exit, 'clear' to reset memory)\n")
+    print("[2/2] Starting chat (type 'quit' to exit, 'clear' to reset memory)\n")
     from src.pipeline import build_conversational_rag_chain, ConversationMemory
     memory = ConversationMemory()
-    chain = build_conversational_rag_chain(retriever, memory)
+    chain = build_conversational_rag_chain(rag_graph, memory)
 
     while True:
         question = input("You: ").strip()
@@ -34,19 +29,14 @@ def cli_mode():
             continue
         result = chain(question)
         print(f"\nAssistant: {result['answer']}")
-        print(f"[Confidence: {result['confidence']} | Mode: {result['mode']}", end="")
-        if result.get("iterations", 1) > 1:
-            print(f" | Iterations: {result['iterations']}", end="")
-        if result.get("flags"):
-            print(f" | Flags: {result['flags']}", end="")
-        print("]\n")
+        print(f"[Confidence: {result['confidence']} | Sources: {result.get('sources', [])}]\n")
 
 
 def api_mode():
     """Start FastAPI server."""
     import uvicorn
     print("=" * 60)
-    print("  Hybrid RAG - API Mode")
+    print("  Agentic RAG - API Mode")
     print("  http://localhost:8000")
     print("=" * 60)
     uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)

@@ -101,6 +101,7 @@ def build_conversational_rag_chain(graph, memory: ConversationMemory):
         initial_state = {
             "question": question,
             "cleaned": "",
+            "source_filter": source_filter or "",
             "messages": initial_messages,
             "answer": "",
             "tools_used": [],

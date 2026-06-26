@@ -1,52 +1,52 @@
 [
   {
-    "question": "What ML projects has Alex worked on?",
-    "ground_truth": "Alex has worked on three main ML projects: FraudGuard (fraud detection system), MedNLP (clinical text understanding), and RecSysPro (recommendation engine).",
+    "question": "What ML projects has Adeesha worked on?",
+    "ground_truth": "Adeesha has worked on several ML projects including a Real-Time Fraud Detection System (CatBoost, Feast, Kafka), a Hybrid RAG Portfolio Assistant (LangGraph, OpenSearch, Gemini, Cohere), and a Movie Recommendation System (KNN, SVD, SBERT).",
+    "category": "projects"
+  },
+  {
+    "question": "What was the impact of the fraud detection project?",
+    "ground_truth": "The fraud detection system processes 10K transactions/sec with sub-15ms latency, achieves ROC-AUC 0.9938 and PR-AUC 0.94, and uses a 3-tier decision framework (Auto-Block, Manual Review, Soft Audit).",
+    "category": "projects"
+  },
+  {
+    "question": "What is Adeesha's education background?",
+    "ground_truth": "Adeesha is pursuing education in machine learning and data science, with coursework in statistics, data structures, and software engineering.",
     "category": "resume"
   },
   {
-    "question": "What was the impact of the FraudGuard project?",
-    "ground_truth": "FraudGuard detected $2.1M in fraudulent transactions in its first quarter and reduced false positive rate by 35%.",
-    "category": "project"
-  },
-  {
-    "question": "What is Alex's education background?",
-    "ground_truth": "Alex has a Master of Science in Computer Science (Machine Learning) from Stanford University (2018) and a Bachelor of Science in Computer Science from UC Berkeley (2016).",
-    "category": "resume"
-  },
-  {
-    "question": "What technologies does Alex use for MLOps?",
-    "ground_truth": "Alex uses Docker, Kubernetes, MLflow, and Weights & Biases for MLOps.",
+    "question": "What technologies does Adeesha use for MLOps?",
+    "ground_truth": "Adeesha uses MLflow, DAGsHub, Apache Airflow, Feast Feature Store, GitHub Actions CI/CD, Docker, and Kubernetes for MLOps.",
     "category": "skills"
   },
   {
-    "question": "What is the architecture of the FraudGuard system?",
-    "ground_truth": "FraudGuard uses a lambda architecture with Apache Kafka for streaming, Redis for feature store, XGBoost + Neural Network ensemble for modeling, and FastAPI for serving.",
-    "category": "project"
+    "question": "What is the architecture of the Hybrid RAG system?",
+    "ground_truth": "The Hybrid RAG system uses LangGraph StateGraph with 5 agent tools, OpenSearch hybrid search (BM25 + k-NN), Cohere reranking, parent-child chunking (2000/500), Docling extraction, MinIO storage, and Upstash Redis caching.",
+    "category": "projects"
   },
   {
-    "question": "What was Alex's role at TechCorp?",
-    "ground_truth": "Alex was a Senior ML Engineer at TechCorp from January 2022 to present, where they built a fraud detection system and led a team of 4 engineers.",
-    "category": "experience"
-  },
-  {
-    "question": "What is the MedNLP project about?",
-    "ground_truth": "MedNLP is a clinical NLP system that extracts structured information from unstructured medical records, performing named entity recognition and relation extraction.",
-    "category": "project"
-  },
-  {
-    "question": "What cloud platforms does Alex have experience with?",
-    "ground_truth": "Alex has experience with AWS (SageMaker, EC2, S3, Lambda), GCP (Vertex AI), and Azure ML.",
+    "question": "What are Adeesha's soft skills?",
+    "ground_truth": "Adeesha has leadership skills from cadet programs, teamwork from UNICEF volunteering, resilience from karate training, and strong communication and time management abilities.",
     "category": "skills"
   },
   {
-    "question": "What was the accuracy of the MedNLP NER system?",
-    "ground_truth": "The MedNLP NER system achieved an overall F1 score of 0.93, with problem entities at 0.94, treatment entities at 0.92, and test entities at 0.91.",
-    "category": "project"
+    "question": "What programming languages does Adeesha know?",
+    "ground_truth": "Adeesha knows Python, SQL, JavaScript/TypeScript, Java, Kotlin, R, PHP, and Bash.",
+    "category": "skills"
   },
   {
-    "question": "What programming languages does Alex know?",
-    "ground_truth": "Alex knows Python, SQL, JavaScript, and C++.",
+    "question": "What cloud platforms does Adeesha have experience with?",
+    "ground_truth": "Adeesha has experience with AWS (EC2, S3, Lambda, Certified), GCP, Oracle Cloud Infrastructure, and uses Coolify for deployment.",
+    "category": "skills"
+  },
+  {
+    "question": "What is the Real-Time Fraud Detection System?",
+    "ground_truth": "It is a production-grade credit card fraud detection system using CatBoost, Feast feature store, Kafka streaming, Airflow pipelines, with sub-15ms inference latency, ROC-AUC 0.9938, and automated drift detection with Evidently AI.",
+    "category": "projects"
+  },
+  {
+    "question": "What karate and cadet experience does Adeesha have?",
+    "ground_truth": "Adeesha has training in karate (martial arts) and cadet programs (NCC), which developed discipline, leadership, resilience, and the ability to make decisions in high-stakes situations.",
     "category": "skills"
   }
 ]
