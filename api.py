@@ -5,7 +5,6 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from src.config import FOLDERS, ALLOWED_EXTENSIONS
-from src.retrieval import get_reranked_retriever
 from src.pipeline import build_conversational_rag_chain, ConversationMemory
 from src.storage import storage
 
@@ -54,19 +53,19 @@ class QueryResponse(BaseModel):
 @app.on_event("startup")
 async def startup():
     """Initialize RAG system on server start."""
-    print("Initializing Hybrid RAG system...")
+    print("Initializing Agentic RAG system...")
     try:
         from src.opensearch_client import get_opensearch_client, ensure_index, get_doc_count
         client = get_opensearch_client()
         ensure_index(client)
         doc_count = get_doc_count(client)
-        retriever = get_reranked_retriever()
+        from src.graph import rag_graph
         memory = ConversationMemory()
-        chain = build_conversational_rag_chain(retriever, memory)
+        chain = build_conversational_rag_chain(rag_graph, memory)
         rag_app["chain"] = chain
         rag_app["memory"] = memory
-        rag_app["retriever"] = retriever
-        print(f"Ready! {doc_count} chunks in OpenSearch.")
+        rag_app["retriever"] = rag_graph
+        print(f"Ready! {doc_count} chunks in OpenSearch. Agentic graph compiled.")
     except Exception as e:
         print(f"Warning: {e}. Waiting for worker to index documents.")
 
