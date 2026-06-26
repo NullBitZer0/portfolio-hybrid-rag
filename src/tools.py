@@ -98,7 +98,7 @@ def search_projects(query: str) -> str:
 
 @tool
 def search_skills(query: str) -> str:
-    """Search specifically for skills information. Use this when the user asks about Adeesha's technical skills, tools, or soft skills."""
+    """Search for ALL skills information about Adeesha. Use this when the user asks about technical skills, tools, technologies, programming languages, ML frameworks, soft skills, or ANY skills-related question. Searches both technical_skills.pdf (Python, PyTorch, TensorFlow, Docker, AWS, etc.) and soft_skills.pdf (leadership, teamwork, etc.)."""
     client = get_opensearch_client()
     from src.config import USE_HYDE
     search_query = query

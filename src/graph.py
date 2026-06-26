@@ -1,7 +1,7 @@
 from typing import TypedDict, Annotated, Literal
 from operator import add
 
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 
@@ -36,16 +36,17 @@ TOOL_MAP = {t.name: t for t in TOOLS}
 AGENT_SYSTEM_PROMPT = """You are Adeesha Perera's portfolio AI assistant. You have search tools to find information about his projects, skills, experience, and education.
 
 Available documents in the knowledge base:
-- resume/technical_skills.pdf - Programming languages, ML/DL frameworks, DevOps tools, cloud platforms
-- resume/all_projects.pdf - All projects categorized (production, university, learning, fun)
+- technical_skills.pdf - Programming languages (Python, SQL, JS, Java, Kotlin), ML/DL frameworks (PyTorch, TensorFlow, XGBoost, CatBoost, Scikit-learn), DevOps tools (Docker, Kubernetes, AWS), data tools (Pandas, NumPy, Spark)
+- soft_skills.pdf - Soft skills (leadership, teamwork, resilience), karate, cadet training, UNICEF volunteering
+- all_projects.pdf - All projects categorized (production, university, learning, fun)
 - realtime_fraud_detection.pdf - Real-time Fraud Detection System details (CatBoost, Feast, Kafka, Airflow)
 - hybrid_rag_project.pdf - Hybrid RAG Portfolio Assistant details (OpenSearch, Gemini, Cohere, Docling)
-- soft_skills.pdf - Soft skills, karate, cadet training, UNICEF volunteering
 
-HOW TO SEARCH:
-- For project questions: call search_projects first, then search_source for specific project details
-- For skill questions: call search_skills first, then search_source for specifics if needed
-- For general questions: call search_all
+TOOL ROUTING RULES (IMPORTANT):
+- "skills", "technical skills", "tools", "technologies", "programming" -> ALWAYS call search_skills first
+- "projects", "built", "created", "developed" -> ALWAYS call search_projects first
+- "about adeesha", "who is", "resume", "experience" -> call search_all
+- If search_skills returns only soft skills info, also call search_source("technical tools", "technical_skills.pdf")
 - Use list_documents to see what is available if unsure
 
 RULES:
@@ -103,6 +104,8 @@ def agent_step(state: RAGState) -> dict:
         tools_used = []
         if response.tool_calls:
             tools_used = [tc["name"] for tc in response.tool_calls]
+
+        print(f"Agent step (round {state['retrieval_round']}): tools={tools_used}")
 
         span.update(output={
             "tool_calls": tools_used,
@@ -266,6 +269,30 @@ def route_after_analyze(state: RAGState) -> Literal["more", "generate"]:
     return "generate"
 
 
+def tool_executor(state: RAGState) -> dict:
+    """Execute tool calls and log results."""
+    last_msg = state["messages"][-1] if state["messages"] else None
+    if not last_msg or not hasattr(last_msg, "tool_calls") or not last_msg.tool_calls:
+        return {"messages": []}
+
+    results = []
+    for tc in last_msg.tool_calls:
+        tool_name = tc["name"]
+        tool_args = tc["args"]
+        print(f"  Tool call: {tool_name}({tool_args})")
+        try:
+            tool = TOOL_MAP[tool_name]
+            result = tool.invoke(tool_args)
+            result_preview = str(result)[:150]
+            print(f"  Tool result: {result_preview}...")
+            results.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+        except Exception as e:
+            print(f"  Tool error: {e}")
+            results.append(ToolMessage(content=f"Error: {e}", tool_call_id=tc["id"]))
+
+    return {"messages": results}
+
+
 # ── Build Graph ────────────────────────────────────────────
 
 def build_graph():
@@ -276,7 +303,7 @@ def build_graph():
     graph.add_node("input_guard", input_guard)
     graph.add_node("classify_portfolio", classify_portfolio)
     graph.add_node("agent_step", agent_step)
-    graph.add_node("tool_executor", ToolNode(TOOLS, handle_tool_errors=True))
+    graph.add_node("tool_executor", tool_executor)
     graph.add_node("analyze_results", analyze_results)
     graph.add_node("generate", generate)
     graph.add_node("output_guard", output_guard)
