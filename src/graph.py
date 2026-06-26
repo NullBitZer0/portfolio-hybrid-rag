@@ -1,5 +1,8 @@
+import logging
 from typing import TypedDict, Annotated, Literal
 from operator import add
+
+logger = logging.getLogger("rag.graph")
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, END
@@ -136,7 +139,7 @@ def agent_step(state: RAGState) -> dict:
         if response.tool_calls:
             tools_used = [tc["name"] for tc in response.tool_calls]
 
-        print(f"Agent step (round {retrieval_round}): tools={tools_used}")
+        logger.info("Agent step (round %d): tools=%s", retrieval_round, tools_used)
 
         span.update(output={
             "tool_calls": tools_used,
@@ -201,7 +204,7 @@ def generate(state: RAGState) -> dict:
             response = invoke_llm_with_fallback({}, formatted, temperature=0.1, max_tokens=MAX_LLM_TOKENS)
             answer = response.content.strip()
         except Exception as e:
-            print(f"All LLM providers failed for generate: {e}")
+            logger.error("All LLM providers failed for generate: %s", e)
             answer = "I'm having trouble generating a response right now. Please try again."
 
         span.update(output={"answer": answer[:200], "sources": list(all_sources)})
@@ -264,15 +267,15 @@ def tool_executor(state: RAGState) -> dict:
     for tc in last_msg.tool_calls:
         tool_name = tc["name"]
         tool_args = tc["args"]
-        print(f"  Tool call: {tool_name}({tool_args})")
+        logger.info("  Tool call: %s(%s)", tool_name, tool_args)
         try:
             tool = TOOL_MAP[tool_name]
             result = tool.invoke(tool_args)
             result_preview = str(result)[:150]
-            print(f"  Tool result: {result_preview}...")
+            logger.info("  Tool result: %s...", result_preview)
             results.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
         except Exception as e:
-            print(f"  Tool error: {e}")
+            logger.error("  Tool error: %s", e)
             results.append(ToolMessage(content=f"Error: {e}", tool_call_id=tc["id"]))
 
     return {"messages": results}

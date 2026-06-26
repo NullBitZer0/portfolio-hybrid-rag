@@ -1,5 +1,8 @@
 import os
+import logging
 from dotenv import load_dotenv
+
+logger = logging.getLogger("rag.config")
 
 load_dotenv()
 
@@ -81,11 +84,11 @@ def invoke_llm_with_fallback(primary_kwargs: dict, prompt_or_messages, temperatu
     except Exception as e:
         err_str = str(e).lower()
         if any(kw in err_str for kw in ["rate_limit", "429", "503", "connection", "timeout", "overloaded"]):
-            print(f"Groq unavailable ({e}), falling back to Gemini")
+            logger.warning("Groq unavailable (%s), falling back to Gemini", e)
             try:
                 fallback = get_fallback_llm(temperature=temperature, max_tokens=max_tokens)
                 return fallback.invoke(prompt_or_messages)
             except Exception as e2:
-                print(f"Gemini fallback also failed: {e2}")
+                logger.error("Gemini fallback also failed: %s", e2)
                 raise
         raise

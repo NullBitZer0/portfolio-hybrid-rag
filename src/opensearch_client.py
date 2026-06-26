@@ -1,5 +1,8 @@
+import logging
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from src.config import OPENSEARCH_HOST, OPENSEARCH_INDEX, EMBEDDING_DIM
+
+logger = logging.getLogger("rag.opensearch")
 
 
 def get_opensearch_client() -> OpenSearch:
@@ -53,9 +56,9 @@ def ensure_index(client: OpenSearch = None):
         client = get_opensearch_client()
     if not client.indices.exists(index=OPENSEARCH_INDEX):
         client.indices.create(index=OPENSEARCH_INDEX, body=INDEX_MAPPING)
-        print(f"Created OpenSearch index: {OPENSEARCH_INDEX}")
+        logger.info("Created OpenSearch index: %s", OPENSEARCH_INDEX)
     else:
-        print(f"OpenSearch index exists: {OPENSEARCH_INDEX}")
+        logger.info("OpenSearch index exists: %s", OPENSEARCH_INDEX)
 
 
 def delete_index(client: OpenSearch = None):
@@ -64,7 +67,7 @@ def delete_index(client: OpenSearch = None):
         client = get_opensearch_client()
     if client.indices.exists(index=OPENSEARCH_INDEX):
         client.indices.delete(index=OPENSEARCH_INDEX)
-        print(f"Deleted OpenSearch index: {OPENSEARCH_INDEX}")
+        logger.info("Deleted OpenSearch index: %s", OPENSEARCH_INDEX)
 
 
 def bulk_index(client: OpenSearch, documents: list[dict]):
@@ -85,9 +88,9 @@ def bulk_index(client: OpenSearch, documents: list[dict]):
     response = client.bulk(body=actions, refresh=True)
     errors = response.get("errors", False)
     if errors:
-        print(f"Bulk index errors: {response['items'][:3]}")
+        logger.warning("Bulk index errors: %s", response["items"][:3])
     else:
-        print(f"Indexed {len(documents)} documents into OpenSearch")
+        logger.info("Indexed %d documents into OpenSearch", len(documents))
 
 
 def hybrid_search(client: OpenSearch, query_text: str, query_vector: list, k: int = 10, source_filter: str = None) -> list[dict]:
@@ -146,7 +149,7 @@ def delete_by_source(client: OpenSearch, source: str):
         body={"query": {"term": {"source": source}}},
         refresh=True,
     )
-    print(f"Deleted documents with source: {source}")
+    logger.info("Deleted documents with source: %s", source)
 
 
 def get_doc_count(client: OpenSearch = None) -> int:

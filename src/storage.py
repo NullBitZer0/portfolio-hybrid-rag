@@ -1,7 +1,10 @@
 import os
+import logging
 from minio import Minio
 from minio.error import S3Error
 from src.config import MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET, MINIO_SECURE
+
+logger = logging.getLogger("rag.storage")
 
 
 class MinIOStorage:
@@ -18,20 +21,20 @@ class MinIOStorage:
         try:
             self._ensure_bucket()
         except Exception as e:
-            print(f"Warning: MinIO not ready ({e}). Will retry on first use.")
+            logger.warning("MinIO not ready (%s). Will retry on first use.", e)
 
     def _ensure_bucket(self):
         """Create bucket if it doesn't exist."""
         if not self.client.bucket_exists(self.bucket):
             self.client.make_bucket(self.bucket)
-            print(f"Created MinIO bucket: {self.bucket}")
+            logger.info("Created MinIO bucket: %s", self.bucket)
 
     def _retry_ensure_bucket(self):
         """Retry bucket creation."""
         try:
             if not self.client.bucket_exists(self.bucket):
                 self.client.make_bucket(self.bucket)
-                print(f"Created MinIO bucket: {self.bucket}")
+                logger.info("Created MinIO bucket: %s", self.bucket)
         except Exception:
             pass
 
@@ -46,13 +49,13 @@ class MinIOStorage:
             length=len(data),
             content_type=content_type,
         )
-        print(f"Uploaded bytes to {self.bucket}/{object_name}")
+        logger.info("Uploaded bytes to %s/%s", self.bucket, object_name)
         return object_name
 
     def download_file(self, object_name: str, file_path: str) -> str:
         """Download a file from MinIO."""
         self.client.fget_object(self.bucket, object_name, file_path)
-        print(f"Downloaded {self.bucket}/{object_name} to {file_path}")
+        logger.info("Downloaded %s/%s to %s", self.bucket, object_name, file_path)
         return file_path
 
     def list_files(self, prefix: str = "", recursive: bool = True) -> list[dict]:
@@ -71,10 +74,10 @@ class MinIOStorage:
         """Delete a file from MinIO."""
         try:
             self.client.remove_object(self.bucket, object_name)
-            print(f"Deleted {self.bucket}/{object_name}")
+            logger.info("Deleted %s/%s", self.bucket, object_name)
             return True
         except S3Error as e:
-            print(f"Error deleting {object_name}: {e}")
+            logger.error("Error deleting %s: %s", object_name, e)
             return False
 
     def file_exists(self, object_name: str) -> bool:

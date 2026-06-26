@@ -1,8 +1,11 @@
 import hashlib
 import time
+import logging
 from langchain_core.tools import tool
 from src.opensearch_client import get_opensearch_client, hybrid_search
 from src.embeddings import embed_query
+
+logger = logging.getLogger("rag.tools")
 from src.retrieval import cohere_rerank, RERANK_TOP_K
 from src.query_expansion import expand_query
 from langchain_core.documents import Document
@@ -42,7 +45,7 @@ def _search(query: str, source_filter: str = None, k: int = 10) -> str:
     key = _cache_key(query, source_filter)
     cached = _get_cached(key)
     if cached is not None:
-        print(f"Tool cache hit: {query[:40]}...")
+        logger.info("Tool cache hit: %s...", query[:40])
         return cached
 
     client = get_opensearch_client()

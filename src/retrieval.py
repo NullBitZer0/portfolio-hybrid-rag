@@ -1,7 +1,10 @@
+import logging
 from dataclasses import dataclass
 from langchain_core.documents import Document
 from tenacity import retry, stop_after_attempt, wait_exponential
 from src.config import RETRIEVAL_K, COHERE_API_KEY
+
+logger = logging.getLogger("rag.retrieval")
 
 
 RERANK_TOP_K = 3
@@ -53,7 +56,7 @@ def cohere_rerank(query: str, docs: list[Document], top_n: int = RERANK_TOP_K) -
         doc.metadata["rerank_score"] = result.relevance_score
         reranked.append(doc)
 
-    print(f"Cohere reranked {len(docs)} docs -> top {top_n}")
+    logger.info("Cohere reranked %d docs -> top %d", len(docs), top_n)
     return reranked
 
 
@@ -75,5 +78,5 @@ class HybridRetriever:
 def get_reranked_retriever(rerank: bool = True, source_filter: str = None) -> HybridRetriever:
     """Build the hybrid retriever with Cohere reranking."""
     retriever = HybridRetriever(rerank=rerank, k=10, source_filter=source_filter)
-    print("Hybrid retriever built: OpenSearch BM25 + k-NN + Cohere rerank")
+    logger.info("Hybrid retriever built: OpenSearch BM25 + k-NN + Cohere rerank")
     return retriever

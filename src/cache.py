@@ -1,8 +1,11 @@
 import hashlib
 import json
+import logging
 from typing import Optional
 
 from src.config import UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
+
+logger = logging.getLogger("rag.cache")
 
 
 class LLMCache:
@@ -19,12 +22,12 @@ class LLMCache:
                 from upstash_redis import Redis
                 self._redis = Redis(url=UPSTASH_REDIS_REST_URL, token=UPSTASH_REDIS_REST_TOKEN)
                 self._redis.ping()
-                print("Redis cache connected (Upstash)")
+                logger.info("Redis cache connected (Upstash)")
             except Exception as e:
-                print(f"Redis unavailable, using in-memory cache: {e}")
+                logger.warning("Redis unavailable, using in-memory cache: %s", e)
                 self._redis = None
         else:
-            print("No Redis config, using in-memory cache")
+            logger.info("No Redis config, using in-memory cache")
 
     def _make_key(self, query: str, context: str = "") -> str:
         content = f"{query}|{context[:1000]}"

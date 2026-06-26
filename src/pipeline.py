@@ -1,6 +1,9 @@
 import json
+import logging
 from langchain_core.messages import HumanMessage, AIMessage
 from src.config import MEMORY_WINDOW, UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
+
+logger = logging.getLogger("rag.pipeline")
 
 
 class ConversationMemory:
@@ -19,9 +22,9 @@ class ConversationMemory:
                 from upstash_redis import Redis
                 self._redis = Redis(url=UPSTASH_REDIS_REST_URL, token=UPSTASH_REDIS_REST_TOKEN)
                 self._redis.ping()
-                print(f"Redis memory connected (session: {session_id})")
+                logger.info("Redis memory connected (session: %s)", session_id)
             except Exception as e:
-                print(f"Redis unavailable for memory, using in-memory: {e}")
+                logger.warning("Redis unavailable for memory, using in-memory: %s", e)
                 self._redis = None
 
     def _load_history(self) -> list[HumanMessage | AIMessage]:
