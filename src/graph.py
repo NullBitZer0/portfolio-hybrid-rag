@@ -257,16 +257,16 @@ def route_after_classify(state: RAGState) -> Literal["refusal", "agent"]:
 
 
 def route_after_agent(state: RAGState) -> Literal["tools", "generate"]:
-    last_msg = state["messages"][-1] if state["messages"] else None
+    last_msg = state["messages"][-1] if state.get("messages") else None
     if last_msg and hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
         return "tools"
     return "generate"
 
 
 def route_after_analyze(state: RAGState) -> Literal["more", "generate"]:
-    if state["retrieval_round"] < state["max_rounds"]:
+    if state.get("retrieval_round", 0) < state.get("max_rounds", 2):
         # Check if agent actually called tools last round
-        last_msg = state["messages"][-1] if state["messages"] else None
+        last_msg = state["messages"][-1] if state.get("messages") else None
         if last_msg and hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
             return "more"
     return "generate"
@@ -274,7 +274,7 @@ def route_after_analyze(state: RAGState) -> Literal["more", "generate"]:
 
 def tool_executor(state: RAGState) -> dict:
     """Execute tool calls and log results."""
-    last_msg = state["messages"][-1] if state["messages"] else None
+    last_msg = state["messages"][-1] if state.get("messages") else None
     if not last_msg or not hasattr(last_msg, "tool_calls") or not last_msg.tool_calls:
         return {"messages": []}
 
