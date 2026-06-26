@@ -82,7 +82,7 @@ def bulk_index(client: OpenSearch, documents: list[dict]):
             "chunk_id": doc["chunk_id"],
             "parent_content": doc.get("parent_content", doc["content"]),
         })
-    response = client.bulk(body=actions, refresh="wait_for")
+    response = client.bulk(body=actions, refresh=True)
     errors = response.get("errors", False)
     if errors:
         print(f"Bulk index errors: {response['items'][:3]}")
@@ -144,7 +144,7 @@ def delete_by_source(client: OpenSearch, source: str):
     client.delete_by_query(
         index=OPENSEARCH_INDEX,
         body={"query": {"term": {"source": source}}},
-        refresh="wait_for",
+        refresh=True,
     )
     print(f"Deleted documents with source: {source}")
 
