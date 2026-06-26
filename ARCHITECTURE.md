@@ -2,7 +2,7 @@
 
 ## Overview
 
-A production-grade Retrieval-Augmented Generation system with Docling document extraction, OpenSearch hybrid search (BM25 + k-NN), Cohere reranking, guardrails, and RAGAS evaluation. Deployed on Oracle Cloud via Coolify.
+A production-grade Agentic RAG system with LangGraph agent, Docling document extraction, OpenSearch hybrid search (BM25 + k-NN), Cohere reranking, guardrails, Upstash Redis caching, and RAGAS evaluation. Deployed on Oracle Cloud via Coolify.
 
 ## System Architecture
 
@@ -26,38 +26,49 @@ A production-grade Retrieval-Augmented Generation system with Docling document e
                                    |
                                    v
                     ┌──────────────────────────────┐
-                    │    QUERY TRANSFORMATION       │
-                    │  ┌─────────┐ ┌────────────┐  │
-                    │  │ direct  │ │  rewrite   │  │
-                    │  │ (skip)  │ │ (clarify)  │  │
-                    │  ├─────────┤ ├────────────┤  │
-                    │  │multi_q  │ │ step_back  │  │
-                    │  │(altern.)│ │ (broaden)  │  │
-                    │  └─────────┘ └────────────┘  │
+                    │      AGENT (LangGraph)        │
+                    │  LLM decides which tools to   │
+                    │  call based on query intent    │
                     └──────────────┬───────────────┘
                                    |
-                                   v
-                    ┌──────────────────────────────┐
-                    │     HYBRID RETRIEVAL          │
-                    │  ┌──────────┐  ┌──────────┐  │
-                    │  │  BM25    │  │  k-NN    │  │
-                    │  │ (keyword)│  │(semantic)│  │
-                    │  └────┬─────┘  └────┬─────┘  │
-                    │       └──────┬──────┘         │
-                    │              v                │
-                    │     OpenSearch RRF Fusion      │
-                    │              |                │
-                    │              v                │
-                    │     Cohere rerank-v3.5        │
-                    │       Top 10 -> Top 3         │
-                    └──────────────┬───────────────┘
-                                   |
-                                   v
+                    ┌──────────────┼───────────────┐
+                    v              v               v
+            ┌──────────┐  ┌──────────────┐  ┌──────────┐
+            │search_all │  │search_projects│  │search_   │
+            │ (general) │  │ (project PDFs)│  │skills    │
+            └─────┬────┘  └──────┬───────┘  │(skill    │
+                  │              │           │ PDFs)    │
+                  v              v           └────┬─────┘
+            ┌─────────────────────────────────────┐
+            │        HYBRID RETRIEVAL              │
+            │  ┌──────────┐  ┌──────────┐         │
+            │  │  BM25    │  │  k-NN    │         │
+            │  │ (keyword)│  │(semantic)│         │
+            │  └────┬─────┘  └────┬─────┘         │
+            │       └──────┬──────┘                │
+            │              v                       │
+            │     OpenSearch RRF Fusion            │
+            │              |                       │
+            │              v                       │
+            │     Cohere rerank-v3.5               │
+            │       Top 10 -> Top 3                │
+            └──────────────┬──────────────────────┘
+                           |
+                           v
+                    ┌──────────────────┐
+                    │  AGENT ANALYZE   │
+                    │  Enough info?    │
+                    │  No -> retrieve  │
+                    │  again (max 2)   │
+                    │  Yes -> generate │
+                    └────────┬─────────┘
+                             |
+                             v
                     ┌──────────────────────────────┐
                     │        GENERATION             │
-                    │  Groq llama-3.3-70b           │
-                    │  + conversation memory (5)    │
-                    │  + in-memory LRU cache        │
+                    │  Groq openai/gpt-oss-120b     │
+                    │  + Redis conversation memory  │
+                    │  + Redis LLM cache (1hr TTL)  │
                     └──────────────┬───────────────┘
                                    |
                                    v
@@ -87,7 +98,9 @@ A production-grade Retrieval-Augmented Generation system with Docling document e
                     │  1. Receive MinIO webhook     │
                     │  2. Download file to /tmp     │
                     │  3. Docling text extraction   │
-                    │  4. Chunk (500 chars, 100)    │
+                    │  4. Parent-child chunking     │
+                    │     (2000 char parents +      │
+                    │      500 char children)       │
                     │  5. Gemini embed (768-dim)    │
                     │  6. Index to OpenSearch        │
                     │  7. Cleanup temp files        │
@@ -126,7 +139,35 @@ A production-grade Retrieval-Augmented Generation system with Docling document e
 | Vector Store | OpenSearch k-NN index |
 | Keyword Index | OpenSearch BM25 (built-in) |
 
-### 3. Hybrid Retrieval (`retrieval.py`)
+### 3. Agentic RAG Agent (`graph.py`)
+
+| Component | Technology |
+|-----------|------------|
+| Framework | LangGraph StateGraph |
+| Agent LLM | Groq openai/gpt-oss-120b |
+| Tools | 5 tools: search_all, search_projects, search_skills, search_source, list_documents |
+| Multi-step | Max 2 retrieval rounds (retrieve -> analyze -> retrieve again if needed) |
+| Error Handling | ToolNode with handle_tool_errors for graceful degradation |
+
+**Agent Flow:**
+1. LLM receives system prompt with available tools and document list
+2. LLM decides which tools to call based on query intent
+3. Tools execute OpenSearch hybrid search with Cohere reranking
+4. Agent analyzes results and decides if more retrieval is needed
+5. Max 2 rounds to prevent infinite loops
+6. Final answer generated from all accumulated context
+
+### 4. Agent Tools (`tools.py`)
+
+| Tool | What it searches | When to use |
+|------|-----------------|-------------|
+| `search_all` | All documents | Default for most queries |
+| `search_projects` | Project PDFs (fraud, RAG, all_projects) | Project-related queries |
+| `search_skills` | Skill PDFs (technical, soft) | Skill-related queries |
+| `search_source` | Specific document file | When agent needs details from one doc |
+| `list_documents` | Index metadata | When agent needs to know what's available |
+
+### 5. Hybrid Retrieval (`retrieval.py`)
 
 | Component | Technology |
 |-----------|------------|
@@ -135,19 +176,10 @@ A production-grade Retrieval-Augmented Generation system with Docling document e
 | Fusion | OpenSearch native hybrid query (bool filter) |
 | Re-ranking | Cohere rerank-v3.5 (Top 10 -> Top 3) |
 | Embeddings | Gemini gemini-embedding-2 (768-dim) |
+| HyDE | Generates hypothetical answer for better embedding (skipped for short queries) |
+| Source Filter | Filter by specific document filename |
 
-### 4. Query Transformation (`query_transform.py`)
-
-| Strategy | Trigger | Action | LLM Call |
-|----------|---------|--------|----------|
-| `direct` | Clear, specific query | No transformation | No |
-| `rewrite` | Ambiguous questions | LLM clarifies the question | Yes |
-| `multi_query` | Vague/short queries | Generate 2-3 alternative phrasings | Yes |
-| `step_back` | Specific how-to questions | Broaden for foundational context | Yes |
-
-**Optimization:** Clear queries skip the LLM transform call entirely.
-
-### 5. Guardrails (`guardrails.py`)
+### 6. Guardrails (`guardrails.py`)
 
 | Guard | Type | Action |
 |-------|------|--------|
@@ -157,15 +189,27 @@ A production-grade Retrieval-Augmented Generation system with Docling document e
 | Portfolio Classifier | Input | Block general knowledge (keyword + LLM) |
 | Toxicity | Output | Filter offensive language |
 
-### 6. Caching (`cache.py`)
+### 7. Caching (`cache.py`)
 
 | Feature | Description |
 |---------|-------------|
-| In-Memory Cache | LRU cache with max 1000 entries |
+| Provider | Upstash Redis (REST API) |
+| TTL | 1 hour (auto-expire stale cache) |
 | Cache Keys | MD5 hash of query + context |
 | Cache Hit | Skip LLM call, return cached response |
+| Fallback | In-memory dict if Redis unavailable |
 
-### 7. Object Storage (`storage.py`)
+### 8. Conversation Memory (`pipeline.py`)
+
+| Feature | Description |
+|---------|-------------|
+| Provider | Upstash Redis (REST API) |
+| TTL | 24 hours |
+| Session | Per-session storage (keyed by session_id) |
+| Window | Last 5 message pairs (configurable) |
+| Fallback | In-memory list if Redis unavailable |
+
+### 9. Object Storage (`storage.py`)
 
 | Feature | Description |
 |---------|-------------|
@@ -174,7 +218,7 @@ A production-grade Retrieval-Augmented Generation system with Docling document e
 | Structure | Flat (root-level files) |
 | Webhook | Auto-index on upload/delete |
 
-### 8. Observability (`langfuse_integration.py`)
+### 10. Observability (`langfuse_integration.py`)
 
 | Feature | Description |
 |---------|-------------|
@@ -184,7 +228,7 @@ A production-grade Retrieval-Augmented Generation system with Docling document e
 | Cache Hits | Cached responses flagged in trace |
 | Dashboard | https://us.cloud.langfuse.com |
 
-### 9. Evaluation (`evals/run_evals.py`)
+### 11. Evaluation (`evals/run_evals.py`)
 
 | Metric | What It Measures |
 |--------|-----------------|
@@ -221,13 +265,16 @@ A production-grade Retrieval-Augmented Generation system with Docling document e
 
 | Layer | Technology |
 |-------|------------|
-| LLM | Groq (llama-3.3-70b-versatile) |
+| LLM | Groq (openai/gpt-oss-120b) |
+| Agent Framework | LangGraph (StateGraph) |
 | Embeddings | Google Gemini (gemini-embedding-2, 768-dim) |
 | Reranking | Cohere (rerank-v3.5) |
 | Vector + Keyword | OpenSearch 2.19.0 (k-NN + BM25) |
 | Object Storage | MinIO (S3-compatible) |
 | Document Extraction | Docling Serve |
-| Framework | LangChain (function chain) |
+| Cache | Upstash Redis (REST API) |
+| Memory | Upstash Redis (REST API) |
+| Framework | LangChain + LangGraph |
 | API | FastAPI |
 | Frontend | Next.js (portfolio) + floating AI assistant |
 | Observability | Langfuse |
@@ -240,7 +287,7 @@ A production-grade Retrieval-Augmented Generation system with Docling document e
 
 | Service | Description |
 |---------|-------------|
-| rag | FastAPI API + web UI |
+| rag | FastAPI API + LangGraph agent |
 | worker | Document processing (webhook-triggered) |
 | opensearch | Vector + keyword search engine |
 | opensearch-dashboards | Search analytics UI |
@@ -292,3 +339,5 @@ python main.py --api
 | `MINIO_ENDPOINT` | MinIO S3 endpoint |
 | `MINIO_BUCKET` | Storage bucket name |
 | `DOCLING_URL` | Docling extraction service URL |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis REST endpoint |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis auth token |
