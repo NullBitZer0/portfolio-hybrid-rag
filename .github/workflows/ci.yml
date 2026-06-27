@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint
+        run: ruff check src/ api.py main.py worker.py --select E,F,W --ignore E501,E741,F841,F401
+
+      - name: Format check
+        run: ruff format --check src/ api.py main.py worker.py
+
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Check syntax
+        run: |
+          python -m py_compile src/config.py
+          python -m py_compile src/graph.py
+          python -m py_compile src/tools.py
+          python -m py_compile src/retrieval.py
+          python -m py_compile src/embeddings.py
+          python -m py_compile src/opensearch_client.py
+          python -m py_compile src/query_expansion.py
+          python -m py_compile src/pipeline.py
+          python -m py_compile src/guardrails.py
+          python -m py_compile src/cache.py
+          python -m py_compile src/storage.py
+          python -m py_compile src/langfuse_integration.py
+          python -m py_compile api.py
+          python -m py_compile main.py
+          python -m py_compile worker.py
+          echo "All files compile OK"

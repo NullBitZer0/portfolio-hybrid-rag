@@ -10,8 +10,16 @@ from pydantic import BaseModel
 from minio import Minio
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src.config import (
-    MINIO_ENDPOINT, MINIO_ACCESS_KEY, MINIO_SECRET_KEY, MINIO_BUCKET,
-    DOCLING_URL, CHUNK_SIZE, CHUNK_OVERLAP, PARENT_CHUNK_SIZE, FOLDERS, ALLOWED_EXTENSIONS,
+    MINIO_ENDPOINT,
+    MINIO_ACCESS_KEY,
+    MINIO_SECRET_KEY,
+    MINIO_BUCKET,
+    DOCLING_URL,
+    CHUNK_SIZE,
+    CHUNK_OVERLAP,
+    PARENT_CHUNK_SIZE,
+    FOLDERS,
+    ALLOWED_EXTENSIONS,
 )
 from src.embeddings import embed_texts
 from src.opensearch_client import (
@@ -91,22 +99,24 @@ def index_chunks_to_opensearch(chunks: list, source: str):
     all_vectors = []
     batch_size = 100
     for i in range(0, len(texts), batch_size):
-        batch = texts[i:i + batch_size]
+        batch = texts[i : i + batch_size]
         vectors = embed_texts(batch)
         all_vectors.extend(vectors)
 
     documents = []
     for i, chunk in enumerate(chunks):
         doc_id = hashlib.md5(f"{source}_{i}_{chunk.page_content[:50]}".encode()).hexdigest()
-        documents.append({
-            "id": doc_id,
-            "content": chunk.page_content,
-            "vector": all_vectors[i],
-            "source": source,
-            "page": chunk.metadata.get("page", 0),
-            "chunk_id": i,
-            "parent_content": chunk.metadata.get("parent_content", chunk.page_content),
-        })
+        documents.append(
+            {
+                "id": doc_id,
+                "content": chunk.page_content,
+                "vector": all_vectors[i],
+                "source": source,
+                "page": chunk.metadata.get("page", 0),
+                "chunk_id": i,
+                "parent_content": chunk.metadata.get("parent_content", chunk.page_content),
+            }
+        )
 
     bulk_index(client, documents)
 
@@ -116,6 +126,7 @@ def reindex_all():
     objects = client.list_objects(MINIO_BUCKET, recursive=True)
 
     from src.opensearch_client import delete_index
+
     os_client = get_opensearch_client()
     delete_index(os_client)
     ensure_index(os_client)
@@ -238,4 +249,5 @@ async def health():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=9000)

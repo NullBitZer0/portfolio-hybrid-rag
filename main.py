@@ -13,6 +13,7 @@ def cli_mode():
 
     print("[2/2] Starting chat (type 'quit' to exit, 'clear' to reset memory)\n")
     from src.pipeline import build_conversational_rag_chain, ConversationMemory
+
     memory = ConversationMemory()
     chain = build_conversational_rag_chain(rag_graph, memory)
 
@@ -35,6 +36,7 @@ def cli_mode():
 def api_mode():
     """Start FastAPI server."""
     import uvicorn
+
     print("=" * 60)
     print("  Agentic RAG - API Mode")
     print("  http://localhost:8000")

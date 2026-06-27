@@ -52,9 +52,7 @@ async def verify_api_key(request: Request, api_key: str = Security(api_key_heade
 
 def check_rate_limit(client_ip: str) -> bool:
     now = time.time()
-    rate_limit_store[client_ip] = [
-        t for t in rate_limit_store[client_ip] if now - t < RATE_WINDOW
-    ]
+    rate_limit_store[client_ip] = [t for t in rate_limit_store[client_ip] if now - t < RATE_WINDOW]
     if len(rate_limit_store[client_ip]) >= RATE_LIMIT:
         return False
     rate_limit_store[client_ip].append(now)
@@ -62,6 +60,7 @@ def check_rate_limit(client_ip: str) -> bool:
 
 
 # ── Models ─────────────────────────────────────────────────
+
 
 class QueryRequest(BaseModel):
     question: str
@@ -79,17 +78,20 @@ class QueryResponse(BaseModel):
 
 # ── Startup ────────────────────────────────────────────────
 
+
 @app.on_event("startup")
 async def startup():
     """Initialize RAG system on server start."""
     logger.info("Initializing Agentic RAG system...")
     try:
         from src.opensearch_client import get_opensearch_client, ensure_index, get_doc_count
+
         client = get_opensearch_client()
         ensure_index(client)
         doc_count = get_doc_count(client)
         from src.graph import rag_graph
         from src.cache import llm_cache
+
         memory = ConversationMemory()
         chain = build_conversational_rag_chain(rag_graph, memory)
         rag_app["chain"] = chain
@@ -105,13 +107,16 @@ async def startup():
 async def shutdown():
     """Flush Langfuse traces on shutdown."""
     from src.config import LANGFUSE_ENABLED
+
     if LANGFUSE_ENABLED:
         from langfuse import get_client
+
         get_client().flush()
         logger.info("Langfuse traces flushed.")
 
 
 # ── Endpoints ──────────────────────────────────────────────
+
 
 @app.post("/query", response_model=QueryResponse)
 async def query_rag(req: QueryRequest, request: Request, _key: str = Depends(verify_api_key)):
@@ -243,6 +248,7 @@ async def delete_file(folder: str, filename: str, _key: str = Depends(verify_api
     try:
         storage.delete_file(object_name)
         import httpx
+
         try:
             async with httpx.AsyncClient() as client:
                 await client.post("http://worker:9000/delete", json={"filename": object_name}, timeout=10)
@@ -259,6 +265,7 @@ async def delete_file(folder: str, filename: str, _key: str = Depends(verify_api
 async def reindex(_key: str = Depends(verify_api_key)):
     """Trigger full reindex on worker."""
     import httpx
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post("http://worker:9000/reindex", timeout=60)
@@ -291,6 +298,7 @@ async def health_check():
 
     try:
         from src.opensearch_client import get_opensearch_client, get_doc_count
+
         client = get_opensearch_client()
         deps["opensearch"] = {"status": "ok", "chunks": get_doc_count(client)}
     except Exception as e:
@@ -306,8 +314,10 @@ async def health_check():
 
     try:
         from src.config import UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN
+
         if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN:
             from upstash_redis import Redis
+
             r = Redis(url=UPSTASH_REDIS_REST_URL, token=UPSTASH_REDIS_REST_TOKEN)
             r.ping()
             deps["redis"] = {"status": "ok"}

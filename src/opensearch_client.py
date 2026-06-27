@@ -77,14 +77,16 @@ def bulk_index(client: OpenSearch, documents: list[dict]):
     actions = []
     for doc in documents:
         actions.append({"index": {"_index": OPENSEARCH_INDEX, "_id": doc["id"]}})
-        actions.append({
-            "content": doc["content"],
-            "vector": doc["vector"],
-            "source": doc["source"],
-            "page": doc["page"],
-            "chunk_id": doc["chunk_id"],
-            "parent_content": doc.get("parent_content", doc["content"]),
-        })
+        actions.append(
+            {
+                "content": doc["content"],
+                "vector": doc["vector"],
+                "source": doc["source"],
+                "page": doc["page"],
+                "chunk_id": doc["chunk_id"],
+                "parent_content": doc.get("parent_content", doc["content"]),
+            }
+        )
     response = client.bulk(body=actions, refresh=True)
     errors = response.get("errors", False)
     if errors:
@@ -93,7 +95,9 @@ def bulk_index(client: OpenSearch, documents: list[dict]):
         logger.info("Indexed %d documents into OpenSearch", len(documents))
 
 
-def hybrid_search(client: OpenSearch, query_text: str, query_vector: list, k: int = 10, source_filter: str = None) -> list[dict]:
+def hybrid_search(
+    client: OpenSearch, query_text: str, query_vector: list, k: int = 10, source_filter: str = None
+) -> list[dict]:
     """Hybrid search: BM25 + k-NN with Reciprocal Rank Fusion."""
     from src.config import BM25_WEIGHT
 
@@ -133,12 +137,14 @@ def hybrid_search(client: OpenSearch, query_text: str, query_vector: list, k: in
     response = client.search(index=OPENSEARCH_INDEX, body=search_body)
     results = []
     for hit in response["hits"]["hits"]:
-        results.append({
-            "content": hit["_source"].get("parent_content", hit["_source"]["content"]),
-            "source": hit["_source"]["source"],
-            "page": hit["_source"]["page"],
-            "score": hit["_score"],
-        })
+        results.append(
+            {
+                "content": hit["_source"].get("parent_content", hit["_source"]["content"]),
+                "source": hit["_source"]["source"],
+                "page": hit["_source"]["page"],
+                "score": hit["_score"],
+            }
+        )
     return results
 
 

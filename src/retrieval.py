@@ -13,6 +13,7 @@ RERANK_TOP_K = 3
 @dataclass
 class OpenSearchRetriever:
     """Retriever that wraps OpenSearch hybrid search and returns LangChain Documents."""
+
     k: int = RETRIEVAL_K
     source_filter: str = None
 
@@ -36,6 +37,7 @@ class OpenSearchRetriever:
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
 def _cohere_rerank_api(query: str, documents: list[str], top_n: int):
     import cohere
+
     co = cohere.Client(COHERE_API_KEY)
     return co.rerank(
         model="rerank-v3.5",

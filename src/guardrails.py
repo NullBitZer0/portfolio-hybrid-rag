@@ -27,12 +27,36 @@ HARMFUL_PATTERNS = [
 ]
 
 PORTFOLIO_KEYWORDS = [
-    "adeesha", "resume", "portfolio", "project",
-    "experience", "skill", "education", "work", "job", "career",
-    "ml", "machine learning", "data", "engineer", "scientist",
-    "fraud", "mednlp", "recsys", "nlp", "deep learning",
-    "python", "pytorch", "tensorflow", "docker", "kubernetes",
-    "aws", "gcp", "azure", "mlops", "deployment",
+    "adeesha",
+    "resume",
+    "portfolio",
+    "project",
+    "experience",
+    "skill",
+    "education",
+    "work",
+    "job",
+    "career",
+    "ml",
+    "machine learning",
+    "data",
+    "engineer",
+    "scientist",
+    "fraud",
+    "mednlp",
+    "recsys",
+    "nlp",
+    "deep learning",
+    "python",
+    "pytorch",
+    "tensorflow",
+    "docker",
+    "kubernetes",
+    "aws",
+    "gcp",
+    "azure",
+    "mlops",
+    "deployment",
 ]
 
 
@@ -103,6 +127,7 @@ REFUSAL_RESPONSE = "I'm Adeesha's portfolio assistant. I can only answer questio
 # OUTPUT GUARDS
 # ============================================================
 
+
 class OutputGuardResult:
     def __init__(self, passed: bool, reason: str = "", score: float = 1.0, fixed: str = ""):
         self.passed = passed
@@ -116,17 +141,23 @@ class OutputGuardResult:
 
 def guard_toxicity(answer: str) -> OutputGuardResult:
     toxic_keywords = [
-        "stupid", "idiot", "hate", "racist", "sexist", "slur",
-        "kill yourself", "die", " worthless",
+        "stupid",
+        "idiot",
+        "hate",
+        "racist",
+        "sexist",
+        "slur",
+        "kill yourself",
+        "die",
+        " worthless",
     ]
     lower = answer.lower()
     for kw in toxic_keywords:
         if kw in lower:
             return OutputGuardResult(
-                False, f"Toxic content detected: '{kw}'", score=0.0,
-                fixed="I apologize, but I cannot provide that response."
+                False,
+                f"Toxic content detected: '{kw}'",
+                score=0.0,
+                fixed="I apologize, but I cannot provide that response.",
             )
     return OutputGuardResult(True, score=1.0)
-
-
-

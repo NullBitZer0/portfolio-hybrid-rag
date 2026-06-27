@@ -20,6 +20,7 @@ class LLMCache:
         if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN:
             try:
                 from upstash_redis import Redis
+
                 self._redis = Redis(url=UPSTASH_REDIS_REST_URL, token=UPSTASH_REDIS_REST_TOKEN)
                 self._redis.ping()
                 logger.info("Redis cache connected (Upstash)")

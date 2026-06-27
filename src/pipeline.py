@@ -20,6 +20,7 @@ class ConversationMemory:
         if UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN:
             try:
                 from upstash_redis import Redis
+
                 self._redis = Redis(url=UPSTASH_REDIS_REST_URL, token=UPSTASH_REDIS_REST_TOKEN)
                 self._redis.ping()
                 logger.info("Redis memory connected (session: %s)", session_id)
@@ -34,8 +35,7 @@ class ConversationMemory:
                 if data:
                     messages = json.loads(data)
                     return [
-                        HumanMessage(content=m["content"]) if m["type"] == "human"
-                        else AIMessage(content=m["content"])
+                        HumanMessage(content=m["content"]) if m["type"] == "human" else AIMessage(content=m["content"])
                         for m in messages
                     ]
             except Exception:
@@ -46,7 +46,8 @@ class ConversationMemory:
         if self._redis:
             try:
                 messages = [
-                    {"type": "human", "content": m.content} if isinstance(m, HumanMessage)
+                    {"type": "human", "content": m.content}
+                    if isinstance(m, HumanMessage)
                     else {"type": "ai", "content": m.content}
                     for m in history
                 ]
@@ -61,14 +62,14 @@ class ConversationMemory:
         history.append(HumanMessage(content=content))
         # Trim to max_window (keep pairs)
         if len(history) > self.max_window * 2:
-            history = history[-(self.max_window * 2):]
+            history = history[-(self.max_window * 2) :]
         self._save_history(history)
 
     def add_ai_message(self, content: str):
         history = self._load_history()
         history.append(AIMessage(content=content))
         if len(history) > self.max_window * 2:
-            history = history[-(self.max_window * 2):]
+            history = history[-(self.max_window * 2) :]
         self._save_history(history)
 
     def get_history(self) -> list[HumanMessage | AIMessage]:
@@ -83,7 +84,7 @@ class ConversationMemory:
         history = self._load_history()
         # Return only the most recent pairs, excluding the current question
         if len(history) > self.max_window * 2:
-            history = history[-(self.max_window * 2):]
+            history = history[-(self.max_window * 2) :]
         return history
 
     def clear(self):

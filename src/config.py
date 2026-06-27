@@ -61,6 +61,7 @@ ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx", ".md"}
 def get_llm(temperature: float = 0.1, max_tokens: int = None):
     """Get Groq LLM with automatic Gemini fallback on failure."""
     from langchain_groq import ChatGroq
+
     kwargs = {"groq_api_key": GROQ_API_KEY, "model_name": LLM_MODEL, "temperature": temperature, "max_retries": 3}
     if max_tokens:
         kwargs["max_tokens"] = max_tokens
@@ -70,13 +71,16 @@ def get_llm(temperature: float = 0.1, max_tokens: int = None):
 def get_fallback_llm(temperature: float = 0.1, max_tokens: int = None):
     """Get Gemini fallback LLM."""
     from langchain_google_genai import ChatGoogleGenerativeAI
+
     kwargs = {"google_api_key": GEMINI_API_KEY, "model": FALLBACK_LLM_MODEL, "temperature": temperature}
     if max_tokens:
         kwargs["max_tokens"] = max_tokens
     return ChatGoogleGenerativeAI(**kwargs)
 
 
-def invoke_llm_with_fallback(primary_kwargs: dict, prompt_or_messages, temperature: float = 0.1, max_tokens: int = None):
+def invoke_llm_with_fallback(
+    primary_kwargs: dict, prompt_or_messages, temperature: float = 0.1, max_tokens: int = None
+):
     """Try Groq first, fallback to Gemini on rate limit/connection errors."""
     try:
         llm = get_llm(temperature=temperature, max_tokens=max_tokens)

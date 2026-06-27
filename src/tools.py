@@ -40,6 +40,7 @@ def _set_cached(key: str, result: str):
 
 # ── Search Helper ──────────────────────────────────────────
 
+
 def _search(query: str, source_filter: str = None, k: int = 10) -> str:
     """Internal search helper with query expansion, Cohere reranking, and caching."""
     key = _cache_key(query, source_filter)
@@ -164,17 +165,14 @@ def search_source(query: str, source: str) -> str:
 def list_documents() -> str:
     """List all available documents in the knowledge base with their chunk counts. Use this to understand what information is available before searching."""
     from src.config import OPENSEARCH_INDEX
+
     client = get_opensearch_client()
     try:
         response = client.search(
             index=OPENSEARCH_INDEX,
             body={
                 "size": 0,
-                "aggs": {
-                    "sources": {
-                        "terms": {"field": "source", "size": 50}
-                    }
-                },
+                "aggs": {"sources": {"terms": {"field": "source", "size": 50}}},
             },
         )
         buckets = response["aggregations"]["sources"]["buckets"]

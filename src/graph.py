@@ -20,6 +20,7 @@ PROMPT_VERSION = "v2.0"
 
 # ── State ──────────────────────────────────────────────────
 
+
 class RAGState(TypedDict):
     question: str
     cleaned: str
@@ -92,6 +93,7 @@ Answer:"""
 
 # ── Graph Nodes ────────────────────────────────────────────
 
+
 def input_guard(state: RAGState) -> dict:
     """Validate input query for safety."""
     with trace("input_guard", {"question": state.get("question", ""), "prompt_version": PROMPT_VERSION}) as span:
@@ -117,7 +119,9 @@ def agent_step(state: RAGState) -> dict:
     """Agent decides which tools to call or generates final answer."""
     retrieval_round = state.get("retrieval_round", 0)
     source_filter = state.get("source_filter", "")
-    with trace("agent_step", {"round": retrieval_round, "question": state.get("cleaned", ""), "prompt_version": PROMPT_VERSION}) as span:
+    with trace(
+        "agent_step", {"round": retrieval_round, "question": state.get("cleaned", ""), "prompt_version": PROMPT_VERSION}
+    ) as span:
         llm = get_llm(temperature=0.1, max_tokens=MAX_LLM_TOKENS)
         llm_with_tools = llm.bind_tools(TOOLS)
 
@@ -141,10 +145,12 @@ def agent_step(state: RAGState) -> dict:
 
         logger.info("Agent step (round %d): tools=%s", retrieval_round, tools_used)
 
-        span.update(output={
-            "tool_calls": tools_used,
-            "has_tool_calls": bool(response.tool_calls),
-        })
+        span.update(
+            output={
+                "tool_calls": tools_used,
+                "has_tool_calls": bool(response.tool_calls),
+            }
+        )
 
         return {
             "messages": [response],
@@ -196,6 +202,7 @@ def generate(state: RAGState) -> dict:
 
         # Generate answer with fallback
         from langchain_core.prompts import ChatPromptTemplate
+
         prompt = ChatPromptTemplate.from_template(GENERATE_PROMPT)
         question = state.get("cleaned", "")
         formatted = prompt.format(context=context, question=question)
@@ -228,6 +235,7 @@ def output_guard(state: RAGState) -> dict:
 
 
 # ── Routing Functions ──────────────────────────────────────
+
 
 def route_after_input_guard(state: RAGState) -> Literal["blocked", "classify"]:
     if state.get("blocked"):
@@ -282,6 +290,7 @@ def tool_executor(state: RAGState) -> dict:
 
 
 # ── Build Graph ────────────────────────────────────────────
+
 
 def build_graph():
     """Build and compile the agentic RAG graph."""

@@ -41,6 +41,7 @@ class MinIOStorage:
     def upload_bytes(self, data: bytes, object_name: str, content_type: str = "application/octet-stream") -> str:
         """Upload bytes to MinIO."""
         import io
+
         self._retry_ensure_bucket()
         self.client.put_object(
             self.bucket,
