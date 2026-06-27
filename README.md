@@ -20,41 +20,7 @@ The system retrieves relevant information from my documents and generates accura
 
 ## Architecture
 
-```
-Recruiter Question
-       |
-       v
-[Input Guardrails] -- prompt injection, harmful content, length check
-       |
-       v
-[Portfolio Classifier] -- keyword check + LLM fallback (blocks general knowledge)
-       |
-       v
-[LangGraph Agent] -- LLM decides which tools to call based on query intent
-       |
-  ┌────┼────┬──────────┐
-  v    v    v          v
-search search search  list
-_all  _projs _skills  docs
-  |    |    |          |
-  v    v    v          v
-[Hybrid Retrieval] -- OpenSearch BM25 + k-NN dense vector search
-       |
-       v
-[Cohere Rerank] -- top 10 results -> top 3 most relevant
-       |
-       v
-[Agent Analyze] -- enough info? no -> retrieve again (max 2 rounds)
-       |
-       v
-[LLM Generation] -- Groq gpt-oss-120b + Gemini fallback + Redis conversation memory
-       |
-       v
-[Output Guardrails] -- toxicity filter
-       |
-       v
-Answer + Sources
-```
+![Agentic RAG Architecture](images/architecture.png)
 
 ---
 
