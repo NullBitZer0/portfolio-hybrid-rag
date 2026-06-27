@@ -30,22 +30,30 @@ Recruiter Question
 [Portfolio Classifier] -- keyword check + LLM fallback (blocks general knowledge)
        |
        v
-[Query Transformation] -- direct / rewrite / multi_query / step_back
+[LangGraph Agent] -- LLM decides which tools to call based on query intent
        |
-       v
+  ┌────┼────┬──────────┐
+  v    v    v          v
+search search search  list
+_all  _projs _skills  docs
+  |    |    |          |
+  v    v    v          v
 [Hybrid Retrieval] -- OpenSearch BM25 + k-NN dense vector search
        |
        v
 [Cohere Rerank] -- top 10 results -> top 3 most relevant
        |
        v
-[LLM Generation] -- Groq llama-3.3-70b with conversation memory
+[Agent Analyze] -- enough info? no -> retrieve again (max 2 rounds)
+       |
+       v
+[LLM Generation] -- Groq gpt-oss-120b + Gemini fallback + Redis conversation memory
        |
        v
 [Output Guardrails] -- toxicity filter
        |
        v
-Answer to Recruiter
+Answer + Sources
 ```
 
 ---
@@ -54,16 +62,21 @@ Answer to Recruiter
 
 | Feature | Implementation |
 |---|---|
+| **Agentic RAG** | LangGraph StateGraph with 5 tools, multi-step retrieval |
 | **Hybrid Search** | OpenSearch BM25 (keyword) + k-NN (semantic) with RRF fusion |
 | **Reranking** | Cohere rerank-v3.5 (top 10 -> top 3) |
 | **Embeddings** | Google Gemini gemini-embedding-2 (768-dim) |
 | **Document Extraction** | Docling Serve (layout-aware PDF parsing) |
-| **Query Strategies** | 4 modes: direct, rewrite, multi_query, step_back |
-| **Guardrails** | Input: injection detection, toxicity, length. Output: toxicity filter |
-| **Portfolio Classifier** | Blocks general knowledge, only answers about my work |
-| **Conversation Memory** | Sliding window of last 5 messages |
-| **Caching** | In-memory LRU cache (MD5 keys, 1000 entries) |
+| **Parent-Child Chunking** | 2000 char parents (LLM context) + 500 char children (search precision) |
+| **Query Expansion** | Synonym-based expansion for better BM25 recall |
+| **Guardrails** | Input: injection, toxicity, length, portfolio classifier. Output: toxicity |
+| **LLM Caching** | Upstash Redis with 1hr TTL (in-memory fallback) |
+| **Conversation Memory** | Upstash Redis with 24hr TTL, sliding window of last 5 messages |
+| **API Key Auth** | X-API-Key header for /query and admin endpoints |
+| **Rate Limiting** | 5 requests/min per IP |
+| **Gemini Fallback** | Groq primary, Gemini 2.5 Flash on rate limit/connection errors |
 | **Observability** | Full pipeline traced with Langfuse |
+| **Structured Logging** | logging module with per-module loggers |
 | **Evaluation** | RAGAS metrics (faithfulness, relevancy, precision, recall) |
 
 ---
@@ -72,14 +85,15 @@ Answer to Recruiter
 
 | Layer | Technology |
 |---|---|
-| **LLM** | Groq llama-3.3-70b-versatile |
-| **Embeddings** | Google Gemini gemini-embedding-2 |
+| **LLM** | Groq openai/gpt-oss-120b (primary), Gemini 2.5 Flash (fallback) |
+| **Agent Framework** | LangGraph (StateGraph) |
+| **Embeddings** | Google Gemini gemini-embedding-2 (768-dim) |
 | **Reranking** | Cohere rerank-v3.5 |
 | **Vector + Search** | OpenSearch 2.19.0 (k-NN + BM25) |
 | **Object Storage** | MinIO (S3-compatible) |
 | **Document Extraction** | Docling Serve |
+| **Cache + Memory** | Upstash Redis (REST API) |
 | **Backend** | Python 3.13, FastAPI |
-| **Orchestration** | LangChain (function chain) |
 | **Observability** | Langfuse |
 | **Evaluation** | RAGAS |
 | **Frontend** | Next.js (portfolio) with floating AI assistant |
@@ -91,20 +105,23 @@ Answer to Recruiter
 
 ### Document Ingestion
 1. PDFs uploaded to MinIO (resume, projects, certifications)
-2. MinIO webhook triggers the worker service
+2. Worker service triggered via webhook
 3. Worker extracts text with Docling (layout-aware, table structure, OCR)
-4. Text chunked (500 chars, 100 overlap) with LangChain
+4. Parent-child chunking: 2000 char parents (for LLM context) + 500 char children (for search precision)
 5. Chunks embedded with Gemini gemini-embedding-2 (768-dim)
-6. Indexed into OpenSearch (dense vectors + full-text)
+6. Indexed into OpenSearch with parent_content field for citation
+7. Duplicate chunks deleted before re-indexing (deduplication)
 
 ### Query Processing
 1. **Input guardrails** block prompt injection, harmful content, oversized inputs
 2. **Portfolio classifier** ensures the question is about my work (keyword + LLM check)
-3. **Query transformation** selects the best strategy (direct/rewrite/multi_query/step_back)
-4. **Hybrid retrieval** combines BM25 keyword search + k-NN semantic search
-5. **Cohere reranking** narrows top 10 results to top 3 most relevant
-6. **LLM generation** produces a grounded answer with conversation context
-7. **Output guardrails** filter toxicity before returning the response
+3. **LangGraph agent** analyzes the query and decides which tools to call
+4. **Agent tools** (search_all, search_projects, search_skills, search_source, list_documents) execute OpenSearch hybrid search with Cohere reranking
+5. **Query expansion** improves BM25 recall with synonym dictionary
+6. **Agent analyzes results** — if more info needed, retrieves again (max 2 rounds)
+7. **LLM generation** produces a grounded answer with conversation context
+8. **Output guardrails** filter toxicity before returning the response
+9. **LLM cache** stores response for 1hr (same question returns instantly)
 
 ### Deployment
 - **Infrastructure**: Oracle Cloud VM (23GB RAM, 4GB swap)
@@ -116,14 +133,19 @@ Answer to Recruiter
 
 ## API Endpoints
 
+All endpoints except `/` require `X-API-Key` header when `API_KEY` env var is set.
+
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/query` | Ask a question |
-| `POST` | `/upload?folder=` | Upload a document |
+| `GET` | `/` | Health check (OpenSearch, MinIO, Redis status) |
+| `POST` | `/query` | Ask a question (body: `{question, source_filter?}`) |
+| `POST` | `/upload?folder=` | Upload a document (max 20MB default) |
+| `POST` | `/upload-url?folder=` | Download from URL, store in MinIO |
 | `GET` | `/files?folder=` | List stored documents |
-| `DELETE` | `/files/{folder}/{filename}` | Delete a document |
+| `DELETE` | `/files/{folder}/{filename}` | Delete document + reindex |
 | `POST` | `/reindex` | Full reindex from MinIO |
 | `POST` | `/clear-memory` | Clear conversation history |
+| `POST` | `/clear-cache` | Clear LLM response cache |
 
 ---
 
@@ -132,9 +154,12 @@ Answer to Recruiter
 | Metric | Value |
 |---|---|
 | Embedding Dimension | 768 |
+| Chunk Sizes | Parent: 2000 chars, Child: 500 chars |
 | Retrieval | Top 10 -> Top 3 (hybrid + rerank) |
-| LLM Calls per Query | 2-3 |
+| Agent Rounds | Max 2 retrieval rounds |
+| LLM | Groq gpt-oss-120b (primary), Gemini 2.5 Flash (fallback) |
 | Rate Limit | 5 requests/min per IP |
+| LLM Cache | 1hr TTL (Upstash Redis) |
 | Response Time | ~3-5 seconds end-to-end |
 
 ---
@@ -182,6 +207,8 @@ export MINIO_ENDPOINT=localhost:9002
 export GEMINI_API_KEY=your_key
 export GROQ_API_KEY=your_key
 export COHERE_API_KEY=your_key
+export UPSTASH_REDIS_REST_URL=your_url
+export UPSTASH_REDIS_REST_TOKEN=your_token
 
 # Index documents
 python -c "from worker import reindex_all; reindex_all()"
@@ -200,31 +227,33 @@ Push to GitHub. Coolify auto-builds and deploys all 6 services.
 
 ```
 rag/
-  api.py              # FastAPI endpoints + web UI
-  main.py             # Entry point (CLI / API mode)
-  worker.py           # Document processing worker
-  docker-compose.yml  # Local development
+  api.py                 # FastAPI endpoints + health check
+  main.py                # Entry point (CLI / API mode)
+  worker.py              # Document processing worker
+  docker-compose.yml     # Local development
   docker-compose.coolify.yml  # Production (Coolify)
   src/
-    config.py         # Settings and environment variables
-    embeddings.py     # Gemini embedding wrapper
-    opensearch_client.py  # OpenSearch CRUD + hybrid search
-    retrieval.py      # HybridRetriever + Cohere rerank
-    ingest.py         # Document ingestion pipeline
-    graph.py          # Main RAG pipeline function
-    pipeline.py       # Conversation memory + chain wrapper
-    guardrails.py     # Input/output safety + portfolio classifier
-    query_transform.py    # Strategy router (direct/rewrite/multi/step_back)
-    cache.py          # In-memory LLM response cache
-    storage.py        # MinIO client wrapper
+    config.py            # Settings, LLM setup, fallback logic
+    graph.py             # LangGraph StateGraph + agent tools
+    tools.py             # 5 agent tools with caching + query expansion
+    retrieval.py         # OpenSearch hybrid search + Cohere rerank
+    embeddings.py        # Gemini embedding wrapper
+    opensearch_client.py # OpenSearch CRUD + hybrid search
+    query_expansion.py   # Synonym-based query expansion
+    pipeline.py          # Conversation memory (Redis-backed)
+    guardrails.py        # Input/output safety + portfolio classifier
+    cache.py             # LLM response cache (Redis-backed)
+    storage.py           # MinIO client wrapper
     langfuse_integration.py  # Langfuse tracing
-    utils.py          # Shared utilities
   evals/
-    golden_dataset.json    # 10 golden Q&A pairs
-    run_evals.py          # RAGAS evaluation script
-  requirements.txt    # Python dependencies
-  requirements-worker.txt  # Worker dependencies (lighter)
-  .env.example        # Environment variable template
+    golden_dataset.json  # 10 golden Q&A pairs
+    run_evals.py         # RAGAS evaluation script
+  pdf/
+    generate_hybrid_rag_pdf.py   # Project PDF generator
+    generate_techskills_pdf.py   # Technical skills PDF
+    generate_projects_pdf.py     # All projects PDF
+  requirements.txt       # Python dependencies
+  requirements-eval.txt  # Eval-only deps (adds ragas)
 ```
 
 ---
@@ -234,9 +263,10 @@ rag/
 This system demonstrates end-to-end ML engineering skills:
 
 - **System Design**: Multi-service architecture with proper separation of concerns
+- **Agentic RAG**: LangGraph agent with tool routing and multi-step retrieval
 - **Search Engineering**: Hybrid retrieval combining keyword and semantic search
 - **MLOps**: Automated ingestion, evaluation, and observability
-- **Production Mindset**: Guardrails, rate limiting, caching, error handling
+- **Production Mindset**: Guardrails, rate limiting, caching, retry logic, fallbacks
 - **Cloud Deployment**: Container orchestration on real infrastructure
 
 ---

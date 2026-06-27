@@ -2,7 +2,7 @@
 
 ## Overview
 
-A production-grade Agentic RAG system with LangGraph agent, Docling document extraction, OpenSearch hybrid search (BM25 + k-NN), Cohere reranking, guardrails, Upstash Redis caching, and RAGAS evaluation. Deployed on Oracle Cloud via Coolify.
+A production-grade Agentic RAG system with LangGraph agent, Docling document extraction, OpenSearch hybrid search (BM25 + k-NN), Cohere reranking, parent-child chunking, query expansion, guardrails, Upstash Redis caching/memory, API key auth, Gemini fallback, and RAGAS evaluation. Deployed on Oracle Cloud via Coolify.
 
 ## System Architecture
 
@@ -26,7 +26,7 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
                                    |
                                    v
                     ┌──────────────────────────────┐
-                    │      AGENT (LangGraph)        │
+                    │   LANGGRAPH AGENT (StateGraph) │
                     │  LLM decides which tools to   │
                     │  call based on query intent    │
                     │  max 2 retrieval rounds       │
@@ -68,6 +68,7 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
                     ┌──────────────────────────────┐
                     │        GENERATION             │
                     │  Groq openai/gpt-oss-120b     │
+                    │  + Gemini 2.5 Flash fallback  │
                     │  + Redis conversation memory  │
                     │  + Redis LLM cache (1hr TTL)  │
                     └──────────────┬───────────────┘
@@ -91,20 +92,22 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
                     ┌──────────────────────────────┐
                     │      DOCUMENT UPLOAD          │
                     │  PDF uploaded to MinIO        │
+                    │  (max 20MB)                   │
                     └──────────────┬───────────────┘
                                    | webhook
                                    v
                     ┌──────────────────────────────┐
                     │      WORKER SERVICE           │
                     │  1. Receive MinIO webhook     │
-                    │  2. Download file to /tmp     │
-                    │  3. Docling text extraction   │
-                    │  4. Parent-child chunking     │
+                    │  2. Delete old chunks (dedup) │
+                    │  3. Download file to /tmp     │
+                    │  4. Docling text extraction   │
+                    │  5. Parent-child chunking     │
                     │     (2000 char parents +      │
                     │      500 char children)       │
-                    │  5. Gemini embed (768-dim)    │
-                    │  6. Index to OpenSearch        │
-                    │  7. Cleanup temp files        │
+                    │  6. Gemini embed (768-dim)    │
+                    │  7. Index to OpenSearch        │
+                    │  8. Cleanup temp files        │
                     └──────────────┬───────────────┘
                                    |
                                    v
@@ -136,6 +139,7 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 | Trigger | MinIO webhook on file upload/delete |
 | PDF Loader | Docling (via API) |
 | Chunking | Parent-child: 2000 char parents (LLM context) + 500 char children (search precision) |
+| Deduplication | Delete existing chunks before re-indexing |
 | Embeddings | Gemini gemini-embedding-2 (768-dim) |
 | Vector Store | OpenSearch k-NN index |
 | Keyword Index | OpenSearch BM25 (built-in) |
@@ -146,9 +150,12 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 |-----------|------------|
 | Framework | LangGraph StateGraph |
 | Agent LLM | Groq openai/gpt-oss-120b |
+| Fallback LLM | Gemini 2.5 Flash |
+| Max Tokens | 4096 |
 | Tools | 5 tools: search_all, search_projects, search_skills, search_source, list_documents |
 | Multi-step | Max 2 retrieval rounds (retrieve -> analyze -> retrieve again if needed) |
-| Tool Executor | Custom tool_executor with print logging |
+| Retry | Tenacity (3 attempts, exponential backoff) on Gemini, Cohere, Groq |
+| Prompt Version | v2.0 (logged in Langfuse traces) |
 
 **Agent Flow:**
 1. LLM receives system prompt with available tools and document list
@@ -168,12 +175,16 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 | `search_source` | Specific document file | When agent needs details from one doc |
 | `list_documents` | Index metadata | When agent needs to know what's available |
 
+**Tool caching**: In-memory TTL cache (5min) avoids redundant OpenSearch + Cohere calls.
+
+**Query expansion**: Synonym-based expansion for better BM25 recall. STOP_EXPAND list filters generic words.
+
 **Source names in OpenSearch** (include folder prefix for resume/ files):
-- `resume/technical_skills.pdf` (14 chunks)
-- `resume/all_projects.pdf` (12 chunks)
-- `soft_skills.pdf` (42 chunks)
-- `realtime_fraud_detection.pdf` (40 chunks)
-- `agentic_rag_project.pdf` (35 chunks)
+- `resume/technical_skills.pdf`
+- `resume/all_projects.pdf`
+- `resume/agentic_rag_project.pdf`
+- `soft_skills.pdf`
+- `realtime_fraud_detection.pdf`
 
 ### 5. Hybrid Retrieval (`retrieval.py`)
 
@@ -185,6 +196,7 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 | Re-ranking | Cohere rerank-v3.5 (Top 10 -> Top 3) |
 | Embeddings | Gemini gemini-embedding-2 (768-dim) |
 | Source Filter | Filter by specific document filename |
+| Retry | Tenacity (3 attempts, exponential backoff) |
 
 ### 6. Guardrails (`guardrails.py`)
 
@@ -233,6 +245,7 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 | Grading Scores | Answer quality scores logged |
 | Guard Results | Input/output guard decisions logged |
 | Cache Hits | Cached responses flagged in trace |
+| Prompt Version | v2.0 logged in all traces |
 | Dashboard | https://us.cloud.langfuse.com |
 
 ### 11. Evaluation (`evals/run_evals.py`)
@@ -245,20 +258,48 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 | Context Recall | Did we retrieve all needed information? |
 | Factual Correctness | Is answer factually accurate vs ground truth? |
 
+### 12. Security & Auth
+
+| Feature | Description |
+|---------|-------------|
+| API Key Auth | X-API-Key header on /query and admin endpoints |
+| Health Check | Open (no auth required) |
+| Rate Limiting | 5 requests/min per IP |
+| File Size Limit | 20MB max upload (configurable via MAX_UPLOAD_SIZE_MB) |
+| Folder Validation | Upload rejects invalid folder names |
+
+### 13. Structured Logging
+
+| Module | Logger Name |
+|--------|-------------|
+| Config | rag.config |
+| Graph | rag.graph |
+| Tools | rag.tools |
+| Retrieval | rag.retrieval |
+| Embeddings | rag.embeddings |
+| Pipeline | rag.pipeline |
+| Cache | rag.cache |
+| Storage | rag.storage |
+| OpenSearch | rag.opensearch |
+| API | rag-api |
+
 ## API Endpoints
 
 ### RAG App (port 8000)
 
+All endpoints except `/` require `X-API-Key` header when `API_KEY` env var is set.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/query` | Ask a question |
-| POST | `/upload?folder=` | Upload file to MinIO |
+| GET | `/` | Health check (OpenSearch, MinIO, Redis status) |
+| POST | `/query` | Ask a question (body: `{question, source_filter?}`) |
+| POST | `/upload?folder=` | Upload file to MinIO (max 20MB) |
 | POST | `/upload-url?folder=` | Download from URL, store in MinIO |
 | GET | `/files?folder=` | List files (optional folder filter) |
-| DELETE | `/files/{folder}/{filename}` | Delete file from MinIO |
+| DELETE | `/files/{folder}/{filename}` | Delete file from MinIO + reindex |
 | POST | `/reindex` | Trigger full reindex on worker |
 | POST | `/clear-memory` | Clear conversation history |
-| GET | `/` | Health check |
+| POST | `/clear-cache` | Clear LLM response cache |
 
 ### Worker (port 9000)
 
@@ -266,13 +307,14 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 |--------|----------|-------------|
 | POST | `/webhook/minio` | MinIO event notification |
 | POST | `/reindex` | Full reindex all documents |
+| POST | `/delete` | Delete file index by source name |
 | GET | `/health` | Health check |
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
-| LLM | Groq (openai/gpt-oss-120b) |
+| LLM | Groq (openai/gpt-oss-120b), Gemini 2.5 Flash (fallback) |
 | Agent Framework | LangGraph (StateGraph) |
 | Embeddings | Google Gemini (gemini-embedding-2, 768-dim) |
 | Reranking | Cohere (rerank-v3.5) |
@@ -286,6 +328,7 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 | Frontend | Next.js (portfolio) + floating AI assistant |
 | Observability | Langfuse |
 | Evaluation | RAGAS |
+| Retry | Tenacity (exponential backoff) |
 | Infrastructure | Docker Compose, Oracle Cloud, Coolify |
 
 ## Deployment
@@ -308,7 +351,7 @@ A production-grade Agentic RAG system with LangGraph agent, Docling document ext
 git push origin main
 
 # Manual reindex after upload
-curl -X POST http://<rag-url>/reindex
+curl -X POST http://<rag-url>/reindex -H "X-API-Key: <key>"
 ```
 
 ### Local Development
@@ -348,3 +391,7 @@ python main.py --api
 | `DOCLING_URL` | Docling extraction service URL |
 | `UPSTASH_REDIS_REST_URL` | Upstash Redis REST endpoint |
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis auth token |
+| `API_KEY` | API key for authenticated endpoints (optional) |
+| `MAX_UPLOAD_SIZE_MB` | Max upload size in MB (default: 20) |
+| `RATE_LIMIT` | Max requests per window (default: 5) |
+| `RATE_WINDOW` | Rate limit window in seconds (default: 60) |
