@@ -142,9 +142,7 @@ def agent_step(state: RAGState) -> dict:
             response = llm_with_tools.invoke(messages)
             usage = track_usage(gen, response, LLM_MODEL)
             if usage:
-                cost = calculate_cost(usage, LLM_MODEL)
-                if cost:
-                    gen.update(cost_details=cost)
+                calculate_cost(usage, LLM_MODEL)
 
         tools_used = []
         if response.tool_calls:
@@ -216,7 +214,6 @@ def generate(state: RAGState) -> dict:
         formatted = prompt.format(context=context, question=question)
 
         # Track LLM generation with usage and cost
-        used_model = LLM_MODEL
         usage = None
         with trace_generation("generate_llm", LLM_MODEL, input_data={"question": question, "context_len": len(context)}) as gen:
             try:
@@ -224,9 +221,7 @@ def generate(state: RAGState) -> dict:
                 answer = response.content.strip()
                 usage = track_usage(gen, response, LLM_MODEL)
                 if usage:
-                    cost = calculate_cost(usage, LLM_MODEL)
-                    if cost:
-                        gen.update(cost_details=cost)
+                    calculate_cost(usage, LLM_MODEL)
             except Exception as e:
                 logger.error("All LLM providers failed for generate: %s", e)
                 answer = "I'm having trouble generating a response right now. Please try again."
