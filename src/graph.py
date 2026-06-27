@@ -7,9 +7,9 @@ logger = logging.getLogger("rag.graph")
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, END
 
-from src.config import get_llm, invoke_llm_with_fallback, MAX_LLM_TOKENS
+from src.config import get_llm, invoke_llm_with_fallback, MAX_LLM_TOKENS, LLM_MODEL, FALLBACK_LLM_MODEL
 from src.guardrails import guard_input, guard_toxicity, classify_question, REFUSAL_RESPONSE
-from src.langfuse_integration import trace
+from src.langfuse_integration import trace, trace_generation, track_usage, calculate_cost, add_score
 from src.tools import search_all, search_projects, search_skills, search_source, list_documents
 
 
@@ -137,7 +137,14 @@ def agent_step(state: RAGState) -> dict:
             if isinstance(msg, (HumanMessage, AIMessage)):
                 messages.append(msg)
 
-        response = llm_with_tools.invoke(messages)
+        # Track LLM generation with usage
+        with trace_generation("agent_llm", LLM_MODEL, input_data=[m.content for m in messages[-3:]]) as gen:
+            response = llm_with_tools.invoke(messages)
+            usage = track_usage(gen, response, LLM_MODEL)
+            if usage:
+                cost = calculate_cost(usage, LLM_MODEL)
+                if cost:
+                    gen.update(cost_details=cost)
 
         tools_used = []
         if response.tool_calls:
@@ -149,6 +156,7 @@ def agent_step(state: RAGState) -> dict:
             output={
                 "tool_calls": tools_used,
                 "has_tool_calls": bool(response.tool_calls),
+                "usage": usage or {},
             }
         )
 
@@ -207,14 +215,35 @@ def generate(state: RAGState) -> dict:
         question = state.get("cleaned", "")
         formatted = prompt.format(context=context, question=question)
 
-        try:
-            response = invoke_llm_with_fallback({}, formatted, temperature=0.1, max_tokens=MAX_LLM_TOKENS)
-            answer = response.content.strip()
-        except Exception as e:
-            logger.error("All LLM providers failed for generate: %s", e)
-            answer = "I'm having trouble generating a response right now. Please try again."
+        # Track LLM generation with usage and cost
+        used_model = LLM_MODEL
+        usage = None
+        with trace_generation("generate_llm", LLM_MODEL, input_data={"question": question, "context_len": len(context)}) as gen:
+            try:
+                response = invoke_llm_with_fallback({}, formatted, temperature=0.1, max_tokens=MAX_LLM_TOKENS)
+                answer = response.content.strip()
+                usage = track_usage(gen, response, LLM_MODEL)
+                if usage:
+                    cost = calculate_cost(usage, LLM_MODEL)
+                    if cost:
+                        gen.update(cost_details=cost)
+            except Exception as e:
+                logger.error("All LLM providers failed for generate: %s", e)
+                answer = "I'm having trouble generating a response right now. Please try again."
 
-        span.update(output={"answer": answer[:200], "sources": list(all_sources)})
+        # Score: has_sources (did retrieval find anything?)
+        has_sources_score = 1.0 if all_sources else 0.0
+        add_score("has_sources", has_sources_score, f"Sources: {list(all_sources)}")
+
+        # Score: answer_length (penalize very short answers)
+        answer_len_score = min(len(answer) / 200, 1.0) if answer else 0.0
+        add_score("answer_length", answer_len_score, f"Length: {len(answer)} chars")
+
+        # Score: grounded (answer references context)
+        grounded_score = 1.0 if context_parts and answer != "I'm having trouble generating a response right now. Please try again." else 0.0
+        add_score("grounded", grounded_score, "Answer generated from retrieved context")
+
+        span.update(output={"answer": answer[:200], "sources": list(all_sources), "usage": usage or {}})
 
         return {
             "answer": answer,
