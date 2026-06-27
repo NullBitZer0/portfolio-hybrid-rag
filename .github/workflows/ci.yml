@@ -20,7 +20,7 @@ jobs:
         run: pip install ruff
 
       - name: Lint
-        run: ruff check src/ api.py main.py worker.py --select E,F,W --ignore E501,E741,F841,F401
+        run: ruff check src/ api.py main.py worker.py
 
       - name: Format check
         run: ruff format --check src/ api.py main.py worker.py
