@@ -57,6 +57,18 @@ PORTFOLIO_KEYWORDS = [
     "azure",
     "mlops",
     "deployment",
+    "certification",
+    "course",
+    "coursework",
+    "reading",
+    "soft skills",
+    "technical skills",
+    "university",
+    "slit",
+    "slit",
+    "certificate",
+    "training",
+    "learning",
 ]
 
 
