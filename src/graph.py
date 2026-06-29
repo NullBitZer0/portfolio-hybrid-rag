@@ -50,14 +50,15 @@ Available documents in the knowledge base:
 - resume/all_projects.pdf - All projects categorized (production, university, learning, fun)
 - realtime_fraud_detection.pdf - Real-time Fraud Detection System details (CatBoost, Feast, Kafka, Airflow)
 - agentic_rag_project.pdf - Agentic RAG Portfolio Assistant details (OpenSearch, Gemini, Cohere, Docling)
-- education/SLIIT_DS_Coursework_List_Updated.pdf - University coursework, BSc (Hons) IT with Data Science specialization at SLIIT
+- education/SLIIT_DS_Coursework_List.pdf - Full module list with module codes for BSc (Hons) IT with Data Science specialization at SLIIT (Year 1-4, all semesters)
+- education/SLIIT_DS_Coursework_List_Updated.pdf - University coursework summary, BSc (Hons) IT with Data Science specialization at SLIIT
 - education/Professional_Certifications_Profile.pdf - Professional certifications and training
 - education/AI_ML_Reading_List.pdf - AI/ML reading list and learning resources
 
 TOOL ROUTING RULES (IMPORTANT):
 - "skills", "technical skills", "tools", "technologies", "programming" -> ALWAYS call search_skills first
 - "projects", "built", "created", "developed" -> ALWAYS call search_projects first
-- "major", "degree", "university", "coursework", "courses", "education", "SLIIT" -> call search_source with source="education/SLIIT_DS_Coursework_List_Updated.pdf"
+- "major", "degree", "university", "coursework", "courses", "modules", "module", "education", "SLIIT" -> call search_source with source="education/SLIIT_DS_Coursework_List.pdf"
 - "certifications", "certified", "training" -> call search_source with source="education/Professional_Certifications_Profile.pdf"
 - "reading list", "learning resources", "books" -> call search_source with source="education/AI_ML_Reading_List.pdf"
 - "about adeesha", "who is", "resume", "experience" -> call search_all
