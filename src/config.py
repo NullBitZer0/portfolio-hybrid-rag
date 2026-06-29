@@ -54,7 +54,7 @@ API_KEY = os.getenv("API_KEY", "")
 MAX_UPLOAD_SIZE_MB = int(os.getenv("MAX_UPLOAD_SIZE_MB", "20"))
 
 # Folder categories
-FOLDERS = ["", "resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects"]
+FOLDERS = ["", "resume", "completed_ml_projects", "inprogress_ml_projects", "certifications", "uni_projects", "education"]
 ALLOWED_EXTENSIONS = {".pdf", ".txt", ".docx", ".md"}
 
 
