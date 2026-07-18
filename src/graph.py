@@ -46,10 +46,10 @@ AGENT_SYSTEM_PROMPT = f"""[Prompt: {PROMPT_VERSION}] You are Adeesha Perera's po
 
 Available documents in the knowledge base:
 - resume/technical_skills.pdf - Programming languages (Python, SQL, JS, Java, Kotlin), ML/DL frameworks (PyTorch, TensorFlow, XGBoost, CatBoost, Scikit-learn), DevOps tools (Docker, Kubernetes, AWS), data tools (Pandas, NumPy, Spark)
-- soft_skills.pdf - Soft skills (leadership, teamwork, resilience), karate, cadet training, UNICEF volunteering
+- resume/soft_skills.pdf - Soft skills (leadership, teamwork, resilience), karate, cadet training, UNICEF volunteering
 - resume/all_projects.pdf - All projects categorized (production, university, learning, fun)
-- realtime_fraud_detection.pdf - Real-time Fraud Detection System details (CatBoost, Feast, Kafka, Airflow)
-- agentic_rag_project.pdf - Agentic RAG Portfolio Assistant details (OpenSearch, Gemini, Cohere, Docling)
+- resume/realtime_fraud_detection.pdf - Real-time Fraud Detection System details (CatBoost, Feast, Kafka, Airflow)
+- resume/agentic_rag_project.pdf - Agentic RAG Portfolio Assistant details (OpenSearch, Gemini, Cohere, Docling)
 - education/SLIIT_DS_Coursework_List.pdf - Full module list with module codes for BSc (Hons) IT with Data Science specialization at SLIIT (Year 1-4, all semesters)
 - education/SLIIT_DS_Coursework_List_Updated.pdf - University coursework summary, BSc (Hons) IT with Data Science specialization at SLIIT
 - education/Professional_Certifications_Profile.pdf - Professional certifications and training
@@ -62,7 +62,7 @@ TOOL ROUTING RULES (IMPORTANT):
 - "certifications", "certified", "training" -> call search_source with source="education/Professional_Certifications_Profile.pdf"
 - "reading list", "learning resources", "books" -> call search_source with source="education/AI_ML_Reading_List.pdf"
 - "about adeesha", "who is", "resume", "experience" -> call search_all
-- If search_skills returns only soft skills info, also call search_source("technical tools", "technical_skills.pdf")
+- If search_skills returns only soft skills info, also call search_source(\"technical tools\", \"resume/technical_skills.pdf\")
 - Use list_documents to see what is available if unsure
 
 RULES:
