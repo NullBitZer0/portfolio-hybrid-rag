@@ -8,7 +8,6 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from minio import Minio
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from src.config import (
     MINIO_ENDPOINT,
     MINIO_ACCESS_KEY,
@@ -22,6 +21,7 @@ from src.config import (
     ALLOWED_EXTENSIONS,
 )
 from src.embeddings import embed_texts
+from src.semantic_chunker import semantic_chunk_with_parents
 from src.opensearch_client import (
     get_opensearch_client,
     ensure_index,
@@ -64,27 +64,22 @@ def extract_with_docling(file_path: str) -> str:
 
 
 def chunk_text(text: str) -> list:
-    """Split text into parent chunks, then child chunks within each parent."""
-    parent_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=PARENT_CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-        length_function=len,
-        separators=["\n\n", "\n", ". ", " ", ""],
-    )
-    child_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-        length_function=len,
-        separators=["\n\n", "\n", ". ", " ", ""],
+    """Split text into child chunks with parent content using semantic chunking."""
+    child_parent_pairs = semantic_chunk_with_parents(
+        text,
+        embed_fn=embed_texts,
+        threshold=0.45,
+        parent_max_chars=PARENT_CHUNK_SIZE,
+        child_max_chars=CHUNK_SIZE,
     )
 
-    parent_chunks = parent_splitter.create_documents([text])
+    from langchain_core.documents import Document
+
     child_chunks = []
-    for parent in parent_chunks:
-        children = child_splitter.split_documents([parent])
-        for child in children:
-            child.metadata["parent_content"] = parent.page_content
-        child_chunks.extend(children)
+    for child_text, parent_text in child_parent_pairs:
+        doc = Document(page_content=child_text)
+        doc.metadata["parent_content"] = parent_text
+        child_chunks.append(doc)
 
     return child_chunks
 
